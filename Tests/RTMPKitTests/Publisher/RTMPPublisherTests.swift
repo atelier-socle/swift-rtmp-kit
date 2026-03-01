@@ -536,3 +536,45 @@ struct RTMPPublisherEventTests {
         await publisher.disconnect()
     }
 }
+
+// MARK: - Configuration Integration Tests
+
+@Suite("RTMPPublisher — Configuration")
+struct RTMPPublisherConfigurationTests {
+
+    @Test("publish with configuration transitions to publishing")
+    func publishWithConfiguration() async throws {
+        let (publisher, _) = makeScriptedPublisher()
+        let config = RTMPConfiguration(
+            url: "rtmp://localhost/app", streamKey: "test"
+        )
+        try await publisher.publish(configuration: config)
+        let state = await publisher.state
+        #expect(state == .publishing)
+        await publisher.disconnect()
+    }
+
+    @Test("publish with Twitch configuration uses correct params")
+    func publishWithTwitchConfig() async throws {
+        let (publisher, mock) = makeScriptedPublisher()
+        let config = RTMPConfiguration.twitch(
+            streamKey: "test", useTLS: false
+        )
+        try await publisher.publish(configuration: config)
+        #expect(mock.connectHost == "live.twitch.tv")
+        #expect(mock.connectPort == 1935)
+        await publisher.disconnect()
+    }
+
+    @Test("disconnect clears stored configuration")
+    func disconnectClearsConfiguration() async throws {
+        let (publisher, _) = makeScriptedPublisher()
+        let config = RTMPConfiguration(
+            url: "rtmp://localhost/app", streamKey: "test"
+        )
+        try await publisher.publish(configuration: config)
+        await publisher.disconnect()
+        let stored = await publisher.currentConfiguration
+        #expect(stored == nil)
+    }
+}

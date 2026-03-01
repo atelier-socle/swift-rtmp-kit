@@ -39,6 +39,7 @@ public actor RTMPPublisher {
     internal var disassembler = ChunkDisassembler()
     internal let eventContinuation: AsyncStream<RTMPEvent>.Continuation
     internal var messageTask: Task<Void, Never>?
+    internal var currentConfiguration: RTMPConfiguration?
 
     /// Creates a publisher with the default NIO transport.
     public init() {
@@ -63,13 +64,33 @@ public actor RTMPPublisher {
 
     // MARK: - Lifecycle
 
+    /// Connect and start publishing using an ``RTMPConfiguration``.
+    ///
+    /// Convenience method that unpacks the configuration into the
+    /// underlying publish call. Stores the configuration for potential
+    /// reconnection.
+    ///
+    /// - Parameter configuration: The complete streaming configuration.
+    public func publish(configuration: RTMPConfiguration) async throws {
+        currentConfiguration = configuration
+        try await publish(
+            url: configuration.url,
+            streamKey: configuration.streamKey,
+            chunkSize: configuration.chunkSize,
+            metadata: configuration.metadata,
+            enhancedRTMP: configuration.enhancedRTMP,
+            flashVersion: configuration.flashVersion
+        )
+    }
+
     /// Connect and start publishing to an RTMP server.
     public func publish(
         url: String,
         streamKey: String,
         chunkSize: UInt32 = 4096,
         metadata: StreamMetadata? = nil,
-        enhancedRTMP: Bool = true
+        enhancedRTMP: Bool = true,
+        flashVersion: String = "FMLE/3.0 (compatible; FMSc/1.0)"
     ) async throws {
         guard session.state == .idle else {
             throw RTMPError.alreadyPublishing
@@ -86,7 +107,9 @@ public actor RTMPPublisher {
             )
             transitionState(to: .handshaking)
             try await performRTMPConnect(
-                streamKey: parsed, enhancedRTMP: enhancedRTMP
+                streamKey: parsed,
+                enhancedRTMP: enhancedRTMP,
+                flashVersion: flashVersion
             )
             try await sendSetChunkSize(chunkSize)
             transitionState(to: .connected)
@@ -129,6 +152,7 @@ public actor RTMPPublisher {
         session.reset()
         connection.reset()
         disassembler.reset()
+        currentConfiguration = nil
     }
 
     // MARK: - Media Sending
