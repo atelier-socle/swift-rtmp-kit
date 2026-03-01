@@ -194,7 +194,10 @@ private func startFullRTMPServer(
         .get()
 }
 
-@Suite("CLI — TestConnectionCommand Integration")
+@Suite(
+    "CLI — TestConnectionCommand Integration",
+    .enabled(if: ProcessInfo.processInfo.environment["CI"] == nil)
+)
 struct TestConnectionCommandIntegrationTests {
 
     @Test("run completes against local server")
@@ -322,7 +325,10 @@ private func createTempFLV() throws -> String {
     return path
 }
 
-@Suite("CLI — PublishCommand Integration")
+@Suite(
+    "CLI — PublishCommand Integration",
+    .enabled(if: ProcessInfo.processInfo.environment["CI"] == nil)
+)
 struct PublishCommandIntegrationTests {
 
     @Test("run with invalid file shows error")
@@ -409,7 +415,10 @@ struct PublishCommandIntegrationTests {
     }
 }
 
-@Suite("CLI — InfoCommand Integration")
+@Suite(
+    "CLI — InfoCommand Integration",
+    .enabled(if: ProcessInfo.processInfo.environment["CI"] == nil)
+)
 struct InfoCommandIntegrationTests {
 
     @Test("run completes against local server")

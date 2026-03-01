@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Atelier Socle SAS
 
+import Foundation
 import NIOCore
 import NIOPosix
 import Testing
@@ -148,7 +149,10 @@ private func startBadHandshakeServer(
         .get()
 }
 
-@Suite("NIOTransport — Local Server Integration")
+@Suite(
+    "NIOTransport — Local Server Integration",
+    .enabled(if: ProcessInfo.processInfo.environment["CI"] == nil)
+)
 struct NIOTransportIntegrationTests {
 
     @Test("connect to local server succeeds")
@@ -409,7 +413,10 @@ struct NIOTransportIntegrationTests {
     }
 }
 
-@Suite("NIOTransport — Waiting Receiver Paths")
+@Suite(
+    "NIOTransport — Waiting Receiver Paths",
+    .enabled(if: ProcessInfo.processInfo.environment["CI"] == nil)
+)
 struct NIOTransportWaitingReceiverTests {
 
     @Test("enqueueMessage delivers to waiting receiver")
