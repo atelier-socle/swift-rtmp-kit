@@ -62,7 +62,7 @@ struct RTMPErrorCreationTests {
             .invalidURL("url")
         ]
         for error in errors {
-            #expect(!error.localizedDescription.isEmpty)
+            #expect(!error.description.isEmpty)
         }
     }
 }

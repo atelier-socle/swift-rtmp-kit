@@ -227,7 +227,7 @@ private func writeTempFile(bytes: [UInt8]) throws -> String {
     let path = dir.appendingPathComponent(
         "test-\(UUID().uuidString).flv"
     ).path
-    FileManager.default.createFile(
+    _ = FileManager.default.createFile(
         atPath: path,
         contents: Data(bytes)
     )

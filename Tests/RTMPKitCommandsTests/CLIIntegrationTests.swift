@@ -316,7 +316,7 @@ private func createTempFLV() throws -> String {
     let path = dir.appendingPathComponent(
         "rtmpkit-test-\(UUID().uuidString).flv"
     ).path
-    FileManager.default.createFile(
+    _ = FileManager.default.createFile(
         atPath: path, contents: Data(bytes)
     )
     return path
