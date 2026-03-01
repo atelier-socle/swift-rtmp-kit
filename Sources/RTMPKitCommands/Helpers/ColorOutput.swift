@@ -11,7 +11,7 @@ public enum ColorOutput {
 
     /// Whether color output is enabled (auto-detected from TTY).
     public static var isEnabled: Bool {
-        isatty(fileno(stdout)) != 0
+        isatty(STDOUT_FILENO) != 0
     }
 
     /// Green text — for success messages.

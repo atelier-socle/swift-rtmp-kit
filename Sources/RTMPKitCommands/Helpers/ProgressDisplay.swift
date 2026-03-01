@@ -32,7 +32,7 @@ public struct ProgressDisplay: Sendable {
             + "\(frames) frames | \(dropped) dropped | "
             + "\(stateLabel(state))"
         print(line, terminator: "")
-        fflush(stdout)
+        fflush(nil)
     }
 
     /// Show a status line (for non-streaming updates).
@@ -53,7 +53,7 @@ public struct ProgressDisplay: Sendable {
     /// Clear the current line.
     public func clearLine() {
         print("\r\u{1B}[2K", terminator: "")
-        fflush(stdout)
+        fflush(nil)
     }
 
     /// Format bytes as human-readable string (e.g., "1.5 MB").
