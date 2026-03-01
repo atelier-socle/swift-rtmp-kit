@@ -7,8 +7,8 @@ import NIOSSL
 
 /// NIO-based RTMP transport for TCP and RTMPS connections.
 ///
-/// Manages the NIO ``EventLoopGroup``, channel bootstrap, and TLS
-/// configuration. The channel pipeline includes ``RTMPChannelHandler``
+/// Manages the NIO `EventLoopGroup`, channel bootstrap, and TLS
+/// configuration. The channel pipeline includes the RTMP channel handler
 /// for chunk framing and optional NIOSSL for RTMPS.
 public actor NIOTransport: RTMPTransportProtocol {
 
@@ -62,7 +62,7 @@ public actor NIOTransport: RTMPTransportProtocol {
     /// Creates a transport with optional shared EventLoopGroup.
     ///
     /// If no group is provided, creates a dedicated
-    /// ``MultiThreadedEventLoopGroup`` with 1 thread (RTMP is single-connection).
+    /// `MultiThreadedEventLoopGroup` with 1 thread (RTMP is single-connection).
     ///
     /// - Parameters:
     ///   - configuration: Transport configuration (default: `.default`).
@@ -86,7 +86,7 @@ public actor NIOTransport: RTMPTransportProtocol {
     /// Connect to an RTMP server.
     ///
     /// Sets up the NIO channel pipeline with optional TLS and the
-    /// ``RTMPChannelHandler`` for RTMP framing. Completes after
+    /// RTMP channel handler for chunk framing. Completes after
     /// the RTMP handshake finishes.
     ///
     /// - Parameters:
