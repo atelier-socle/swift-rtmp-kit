@@ -487,6 +487,6 @@ extension RTMPPublisher {
             case .invalidState(let msg): return .invalidState(msg)
             }
         }
-        return .connectionFailed(error.localizedDescription)
+        return .connectionFailed("\(error)")
     }
 }
