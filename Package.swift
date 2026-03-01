@@ -13,7 +13,7 @@ let package = Package(
         .tvOS(.v17),
         .watchOS(.v10),
         .visionOS(.v1),
-        .macCatalyst(.v17),
+        .macCatalyst(.v17)
     ],
     products: [
         .library(
@@ -23,13 +23,13 @@ let package = Package(
         .executable(
             name: "rtmp-cli",
             targets: ["RTMPKitCLI"]
-        ),
+        )
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.77.0"),
         .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.29.0"),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.0"),
-        .package(url: "https://github.com/swiftlang/swift-docc-plugin.git", from: "1.4.3"),
+        .package(url: "https://github.com/swiftlang/swift-docc-plugin.git", from: "1.4.3")
     ],
     targets: [
         // Core library — depends on NIO for TCP transport
@@ -39,7 +39,7 @@ let package = Package(
                 .product(name: "NIO", package: "swift-nio"),
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
-                .product(name: "NIOSSL", package: "swift-nio-ssl"),
+                .product(name: "NIOSSL", package: "swift-nio-ssl")
             ]
         ),
 
@@ -48,7 +48,7 @@ let package = Package(
             name: "RTMPKitCommands",
             dependencies: [
                 "RTMPKit",
-                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "ArgumentParser", package: "swift-argument-parser")
             ]
         ),
 
@@ -68,6 +68,6 @@ let package = Package(
         .testTarget(
             name: "RTMPKitCommandsTests",
             dependencies: ["RTMPKitCommands"]
-        ),
+        )
     ]
 )

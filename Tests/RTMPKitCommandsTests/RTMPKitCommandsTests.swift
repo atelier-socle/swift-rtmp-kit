@@ -2,6 +2,7 @@
 // Copyright 2026 Atelier Socle SAS
 
 import Testing
+
 @testable import RTMPKitCommands
 
 @Suite("RTMPKit CLI Commands")
