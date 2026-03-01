@@ -80,3 +80,61 @@ public enum RTMPError: Error, Sendable, Equatable {
     /// The RTMP URL could not be parsed.
     case invalidURL(String)
 }
+
+extension RTMPError: CustomStringConvertible {
+
+    /// Human-readable error description.
+    public var description: String {
+        switch self {
+        case .connectionFailed(let reason):
+            return "Connection failed: \(reason)"
+        case .connectionTimeout:
+            return "Connection timed out"
+        case .connectionClosed:
+            return "Connection closed by server"
+        case .tlsError(let reason):
+            return "TLS error: \(reason)"
+        case .handshakeFailed(let reason):
+            return "Handshake failed: \(reason)"
+        case .versionMismatch(let expected, let received):
+            return
+                "RTMP version mismatch: expected \(expected), "
+                + "got \(received)"
+        case .invalidChunkHeader:
+            return "Invalid chunk header"
+        case .invalidMessageType(let typeID):
+            return "Invalid message type: \(typeID)"
+        case .messageTooLarge(let size):
+            return "Message too large: \(size) bytes"
+        case .connectRejected(let code, let desc):
+            return
+                "Connection rejected: \(code)"
+                + (desc.isEmpty ? "" : " — \(desc)")
+        case .createStreamFailed(let reason):
+            return "Create stream failed: \(reason)"
+        case .publishFailed(let code, let desc):
+            return
+                "Publish rejected: \(code)"
+                + (desc.isEmpty ? "" : " — \(desc)")
+        case .unexpectedResponse(let detail):
+            return "Unexpected server response: \(detail)"
+        case .transactionTimeout(let txnID):
+            return
+                "Command timed out (transaction \(txnID))"
+        case .invalidState(let detail):
+            return "Invalid state: \(detail)"
+        case .notConnected:
+            return "Not connected"
+        case .notPublishing:
+            return "Not publishing"
+        case .alreadyPublishing:
+            return "Already publishing"
+        case .reconnectExhausted(let attempts):
+            return
+                "Reconnection exhausted after "
+                + "\(attempts) attempts"
+        case .invalidURL(let url):
+            return "Invalid RTMP URL: \(url)"
+        }
+    }
+}

@@ -35,9 +35,10 @@ extension RTMPPublisher {
             transactionID: txnID, commandName: "connect"
         )
         try await sendCommand(cmd, chunkStreamID: .command)
-        try await awaitCommandResult(
-            transactionID: txnID, commandName: "connect"
+        let (props, info) = try await awaitConnectResult(
+            transactionID: txnID
         )
+        serverInfo = parseServerInfo(properties: props, info: info)
     }
 
     internal func sendSetChunkSize(_ size: UInt32) async throws {
@@ -95,6 +96,39 @@ extension RTMPPublisher {
 
 extension RTMPPublisher {
 
+    internal func awaitConnectResult(
+        transactionID: Int
+    ) async throws -> (properties: AMF0Value?, info: AMF0Value?) {
+        while true {
+            let message = try await transport.receive()
+            trackBytesReceived(message)
+            if message.typeID == RTMPMessage.typeIDCommandAMF0 {
+                let cmd = try RTMPCommand.decode(from: message.payload)
+                switch cmd {
+                case .result(let txnID, let props, let info)
+                where Int(txnID) == transactionID:
+                    _ = connection.processResponse(
+                        transactionID: transactionID
+                    )
+                    return (props, info)
+                case .error(let txnID, _, let info)
+                where Int(txnID) == transactionID:
+                    _ = connection.processResponse(
+                        transactionID: transactionID
+                    )
+                    let status = extractStatusInfo(info)
+                    throw RTMPError.connectRejected(
+                        code: status.code,
+                        description: status.description
+                    )
+                default:
+                    break
+                }
+            }
+            processProtocolMessage(message)
+        }
+    }
+
     internal func awaitCommandResult(
         transactionID: Int, commandName: String
     ) async throws {
@@ -135,14 +169,10 @@ extension RTMPPublisher {
         case .error(let txnID, _, let info)
         where Int(txnID) == transactionID:
             _ = connection.processResponse(transactionID: transactionID)
-            let (code, desc) = extractStatusInfo(info)
-            if commandName == "connect" {
-                throw RTMPError.connectRejected(
-                    code: code, description: desc
-                )
-            }
+            let status = extractStatusInfo(info)
             throw RTMPError.unexpectedResponse(
-                "\(commandName) failed: \(code) \(desc)"
+                "\(commandName) failed: \(status.code) "
+                    + "\(status.description)"
             )
         default:
             return nil
@@ -157,14 +187,26 @@ extension RTMPPublisher {
                 let cmd = try? RTMPCommand.decode(from: message.payload),
                 case .onStatus(let info) = cmd
             {
-                let (code, desc) = extractStatusInfo(info)
-                emitEvent(.serverMessage(code: code, description: desc))
-                if code == "NetStream.Publish.Start" { return }
-                if code.contains("Failed") || code.contains("Error")
-                    || code.contains("Rejected")
-                {
+                let status = extractStatusInfo(info)
+                emitEvent(
+                    .serverMessage(
+                        code: status.code,
+                        description: status.description
+                    )
+                )
+                if status.code == "NetStream.Publish.Start" {
+                    return
+                }
+
+                // Check known status codes first, then fall back
+                // to the level field for unknown codes.
+                let isKnownError =
+                    RTMPStatusCode(rawValue: status.code)?
+                    .isError == true
+                if isKnownError || status.level == "error" {
                     throw RTMPError.publishFailed(
-                        code: code, description: desc
+                        code: status.code,
+                        description: status.description
                     )
                 }
             }
@@ -216,8 +258,13 @@ extension RTMPPublisher {
         if let cmd = try? RTMPCommand.decode(from: message.payload),
             case .onStatus(let info) = cmd
         {
-            let (code, desc) = extractStatusInfo(info)
-            emitEvent(.serverMessage(code: code, description: desc))
+            let status = extractStatusInfo(info)
+            emitEvent(
+                .serverMessage(
+                    code: status.code,
+                    description: status.description
+                )
+            )
         }
     }
 
@@ -362,17 +409,66 @@ extension RTMPPublisher {
 
     internal func extractStatusInfo(
         _ value: AMF0Value?
-    ) -> (code: String, description: String) {
+    ) -> StatusInfo {
         guard case .object(let pairs) = value else {
-            return ("unknown", "")
+            return StatusInfo()
         }
-        var code = "unknown"
-        var desc = ""
+        var info = StatusInfo()
         for (key, val) in pairs {
-            if key == "code", case .string(let s) = val { code = s }
-            if key == "description", case .string(let s) = val { desc = s }
+            if key == "code", case .string(let s) = val {
+                info.code = s
+            }
+            if key == "level", case .string(let s) = val {
+                info.level = s
+            }
+            if key == "description", case .string(let s) = val {
+                info.description = s
+            }
         }
-        return (code, desc)
+        return info
+    }
+
+    internal func parseServerInfo(
+        properties: AMF0Value?, info: AMF0Value?
+    ) -> ServerInfo {
+        var result = ServerInfo()
+        parseProperties(properties, into: &result)
+        parseInfoObject(info, into: &result)
+        return result
+    }
+
+    private func parseProperties(
+        _ value: AMF0Value?, into result: inout ServerInfo
+    ) {
+        guard case .object(let pairs) = value else { return }
+        for (key, val) in pairs {
+            if key == "fmsVer", case .string(let s) = val {
+                result.version = s
+            }
+            if key == "capabilities", case .number(let n) = val {
+                result.capabilities = n
+            }
+        }
+    }
+
+    private func parseInfoObject(
+        _ value: AMF0Value?, into result: inout ServerInfo
+    ) {
+        guard case .object(let pairs) = value else { return }
+        for (key, val) in pairs {
+            if key == "objectEncoding", case .number(let n) = val {
+                result.objectEncoding = n
+            }
+            if key == "fourCcList" {
+                let codecs = EnhancedRTMP.parseFourCcList(
+                    from: val
+                )
+                if !codecs.isEmpty {
+                    result.enhancedRTMP = true
+                    result.negotiatedCodecs = codecs
+                }
+            }
+        }
     }
 
     internal func monotonicNow() -> UInt64 {

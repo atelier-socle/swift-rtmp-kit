@@ -50,7 +50,7 @@ public struct PublishCommand: AsyncParsableCommand {
     public var ingest: String?
 
     /// Chunk size.
-    @Option(name: .long, help: "RTMP chunk size (default: 4096)")
+    @Option(name: .long, help: "RTMP chunk size")
     public var chunkSize: UInt32 = 4096
 
     /// Disable Enhanced RTMP.
@@ -101,9 +101,14 @@ public struct PublishCommand: AsyncParsableCommand {
         let reader: MediaFileReader
         do {
             reader = try MediaFileReader(path: file)
+        } catch let error as MediaFileReaderError {
+            display.showError(
+                "Failed to open file: \(error.description)"
+            )
+            throw ExitCode.failure
         } catch {
             display.showError(
-                "Failed to open file: \(error.localizedDescription)"
+                "Failed to open file: \(error)"
             )
             throw ExitCode.failure
         }
@@ -122,8 +127,11 @@ public struct PublishCommand: AsyncParsableCommand {
 
         do {
             try await publisher.publish(configuration: config)
+        } catch let error as RTMPError {
+            display.showError(error.description)
+            throw ExitCode.failure
         } catch {
-            display.showError(error.localizedDescription)
+            display.showError("\(error)")
             throw ExitCode.failure
         }
 
@@ -138,8 +146,12 @@ public struct PublishCommand: AsyncParsableCommand {
                 publisher: publisher,
                 display: quiet ? nil : display
             )
+        } catch let error as RTMPError {
+            display.showError(error.description)
+            await publisher.disconnect()
+            throw ExitCode.failure
         } catch {
-            display.showError(error.localizedDescription)
+            display.showError("\(error)")
             await publisher.disconnect()
             throw ExitCode.failure
         }

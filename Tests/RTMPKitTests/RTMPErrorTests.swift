@@ -194,3 +194,90 @@ struct RTMPErrorConformanceTests {
         }
     }
 }
+
+// MARK: - CustomStringConvertible
+
+@Suite("RTMPError — Description")
+struct RTMPErrorDescriptionTests {
+
+    @Test("all cases produce human-readable descriptions")
+    func allDescriptions() {
+        let cases: [(RTMPError, String)] = [
+            (.connectionFailed("refused"), "Connection failed: refused"),
+            (.connectionTimeout, "Connection timed out"),
+            (.connectionClosed, "Connection closed by server"),
+            (.tlsError("cert"), "TLS error: cert"),
+            (.handshakeFailed("bad"), "Handshake failed: bad"),
+            (
+                .versionMismatch(expected: 3, received: 4),
+                "RTMP version mismatch: expected 3, got 4"
+            ),
+            (.invalidChunkHeader, "Invalid chunk header"),
+            (.invalidMessageType(99), "Invalid message type: 99"),
+            (.messageTooLarge(999), "Message too large: 999 bytes"),
+            (
+                .connectRejected(code: "c", description: "d"),
+                "Connection rejected: c"
+            ),
+            (
+                .createStreamFailed("no ID"),
+                "Create stream failed: no ID"
+            ),
+            (
+                .publishFailed(code: "c", description: "d"),
+                "Publish rejected: c"
+            ),
+            (
+                .unexpectedResponse("bad"),
+                "Unexpected server response: bad"
+            ),
+            (
+                .transactionTimeout(transactionID: 42),
+                "Command timed out (transaction 42)"
+            ),
+            (.invalidState("wrong"), "Invalid state: wrong"),
+            (.notConnected, "Not connected"),
+            (.notPublishing, "Not publishing"),
+            (.alreadyPublishing, "Already publishing"),
+            (
+                .reconnectExhausted(attempts: 5),
+                "Reconnection exhausted after 5 attempts"
+            ),
+            (.invalidURL("bad"), "Invalid RTMP URL: bad")
+        ]
+
+        for (error, expected) in cases {
+            #expect(
+                error.description.hasPrefix(
+                    expected.prefix(20).description
+                )
+            )
+        }
+    }
+
+    @Test("connectRejected includes description when present")
+    func connectRejectedWithDesc() {
+        let err = RTMPError.connectRejected(
+            code: "NetConnection.Connect.Rejected",
+            description: "auth failed"
+        )
+        #expect(err.description.contains("auth failed"))
+    }
+
+    @Test("connectRejected omits dash when description empty")
+    func connectRejectedNoDesc() {
+        let err = RTMPError.connectRejected(
+            code: "Rejected", description: ""
+        )
+        #expect(!err.description.contains("—"))
+    }
+
+    @Test("publishFailed includes description when present")
+    func publishFailedWithDesc() {
+        let err = RTMPError.publishFailed(
+            code: "NetStream.Publish.BadName",
+            description: "stream already exists"
+        )
+        #expect(err.description.contains("stream already exists"))
+    }
+}

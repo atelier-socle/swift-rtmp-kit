@@ -141,6 +141,35 @@ struct InfoCommandPrintInfoTests {
     }
 }
 
+@Suite("InfoCommand — printInfo() with ServerInfo")
+struct InfoCommandPrintInfoServerInfoTests {
+
+    @Test("printInfo shows server version and capabilities")
+    func printInfoWithServerInfo() throws {
+        let cmd = try InfoCommand.parse([
+            "--url", "rtmp://server/app"
+        ])
+        var info = ServerInfo()
+        info.version = "FMS/5,0,17"
+        info.capabilities = 31
+        cmd.printInfo(stats: ConnectionStatistics(), serverInfo: info)
+    }
+
+    @Test("printInfo shows Enhanced RTMP with codecs")
+    func printInfoEnhancedRTMP() throws {
+        let cmd = try InfoCommand.parse([
+            "--url", "rtmp://server/app"
+        ])
+        var info = ServerInfo()
+        info.enhancedRTMP = true
+        info.negotiatedCodecs = [
+            FourCC(stringValue: "av01"),
+            FourCC(stringValue: "hvc1")
+        ]
+        cmd.printInfo(stats: ConnectionStatistics(), serverInfo: info)
+    }
+}
+
 @Suite("InfoCommand — printJSON()")
 struct InfoCommandPrintJSONTests {
 
@@ -162,5 +191,30 @@ struct InfoCommandPrintJSONTests {
         ])
         let stats = ConnectionStatistics()
         cmd.printJSON(stats: stats)
+    }
+
+    @Test("printJSON shows server version and capabilities")
+    func printJSONWithServerInfo() throws {
+        let cmd = try InfoCommand.parse([
+            "--url", "rtmp://server/app"
+        ])
+        var info = ServerInfo()
+        info.version = "FMS/5,0,17"
+        info.capabilities = 31
+        cmd.printJSON(stats: ConnectionStatistics(), serverInfo: info)
+    }
+
+    @Test("printJSON shows Enhanced RTMP with codecs")
+    func printJSONEnhancedRTMP() throws {
+        let cmd = try InfoCommand.parse([
+            "--url", "rtmp://server/app"
+        ])
+        var info = ServerInfo()
+        info.enhancedRTMP = true
+        info.negotiatedCodecs = [
+            FourCC(stringValue: "av01"),
+            FourCC(stringValue: "hvc1")
+        ]
+        cmd.printJSON(stats: ConnectionStatistics(), serverInfo: info)
     }
 }

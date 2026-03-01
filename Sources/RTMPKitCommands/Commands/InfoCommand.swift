@@ -48,48 +48,85 @@ public struct InfoCommand: AsyncParsableCommand {
             )
 
             let stats = await publisher.statistics
+            let info = await publisher.serverInfo
 
             if json {
-                printJSON(stats: stats)
+                printJSON(stats: stats, serverInfo: info)
             } else {
-                printInfo(stats: stats)
+                printInfo(stats: stats, serverInfo: info)
             }
 
             await publisher.disconnect()
+        } catch let error as RTMPError {
+            display.showError(error.description)
+            throw ExitCode.failure
         } catch {
-            display.showError(error.localizedDescription)
+            display.showError("\(error)")
             throw ExitCode.failure
         }
     }
 
     // MARK: - Private
 
-    func printInfo(stats: ConnectionStatistics) {
+    func printInfo(
+        stats: ConnectionStatistics,
+        serverInfo: ServerInfo = ServerInfo()
+    ) {
         let parsed = parseURL(url)
         print(ColorOutput.bold("Server Information"))
-        print("  Server:        \(parsed.host):\(parsed.port)")
+        print("  Server:         \(parsed.host):\(parsed.port)")
         print(
-            "  Protocol:      \(parsed.useTLS ? "RTMPS" : "RTMP")"
+            "  Protocol:       \(parsed.useTLS ? "RTMPS" : "RTMP")"
         )
-        print("  App:           \(parsed.app)")
-        print("  Bytes sent:    \(stats.bytesSent)")
+        print("  App:            \(parsed.app)")
+        if let version = serverInfo.version {
+            print("  Server version: \(version)")
+        }
+        if let caps = serverInfo.capabilities {
+            print("  Capabilities:   \(Int(caps))")
+        }
+        if serverInfo.enhancedRTMP {
+            let codecs = serverInfo.negotiatedCodecs
+                .map(\.stringValue).joined(separator: ", ")
+            print("  Enhanced RTMP:  yes (\(codecs))")
+        } else {
+            print("  Enhanced RTMP:  no")
+        }
+        print("  Bytes sent:     \(stats.bytesSent)")
         print(
             "  Bytes received: \(stats.bytesReceived)"
         )
         if let rtt = stats.roundTripTime {
             print(
-                "  Latency:       \(String(format: "%.0f", rtt * 1000))ms"
+                "  Latency:        "
+                    + "\(String(format: "%.0f", rtt * 1000))ms"
             )
         }
     }
 
-    func printJSON(stats: ConnectionStatistics) {
+    func printJSON(
+        stats: ConnectionStatistics,
+        serverInfo: ServerInfo = ServerInfo()
+    ) {
         let parsed = parseURL(url)
         print("{")
         print("  \"host\": \"\(parsed.host)\",")
         print("  \"port\": \(parsed.port),")
         print("  \"tls\": \(parsed.useTLS),")
         print("  \"app\": \"\(parsed.app)\",")
+        if let version = serverInfo.version {
+            print("  \"serverVersion\": \"\(version)\",")
+        }
+        if let caps = serverInfo.capabilities {
+            print("  \"capabilities\": \(Int(caps)),")
+        }
+        print("  \"enhancedRTMP\": \(serverInfo.enhancedRTMP),")
+        if serverInfo.enhancedRTMP {
+            let codecs = serverInfo.negotiatedCodecs
+                .map { "\"\($0.stringValue)\"" }
+                .joined(separator: ", ")
+            print("  \"negotiatedCodecs\": [\(codecs)],")
+        }
         print("  \"bytesSent\": \(stats.bytesSent),")
         print("  \"bytesReceived\": \(stats.bytesReceived)")
         print("}")

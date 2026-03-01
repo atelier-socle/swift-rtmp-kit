@@ -112,7 +112,7 @@ struct RTMPPublisherProcessProtocolTests {
 @Suite("RTMPPublisher+Internal — extractStatusInfo")
 struct RTMPPublisherExtractStatusTests {
 
-    @Test("extracts code and description from object")
+    @Test("extracts code, level, and description from object")
     func extractsFromObject() async {
         let publisher = RTMPPublisher(transport: MockTransport())
         let info: AMF0Value = .object([
@@ -122,6 +122,7 @@ struct RTMPPublisherExtractStatusTests {
         ])
         let result = await publisher.extractStatusInfo(info)
         #expect(result.code == "NetStream.Publish.Start")
+        #expect(result.level == "status")
         #expect(result.description == "Publishing live")
     }
 
@@ -130,6 +131,7 @@ struct RTMPPublisherExtractStatusTests {
         let publisher = RTMPPublisher(transport: MockTransport())
         let result = await publisher.extractStatusInfo(nil)
         #expect(result.code == "unknown")
+        #expect(result.level == "")
         #expect(result.description == "")
     }
 
@@ -138,6 +140,7 @@ struct RTMPPublisherExtractStatusTests {
         let publisher = RTMPPublisher(transport: MockTransport())
         let result = await publisher.extractStatusInfo(.string("not an obj"))
         #expect(result.code == "unknown")
+        #expect(result.level == "")
         #expect(result.description == "")
     }
 
@@ -149,6 +152,7 @@ struct RTMPPublisherExtractStatusTests {
         ])
         let result = await publisher.extractStatusInfo(info)
         #expect(result.code == "unknown")
+        #expect(result.level == "status")
         #expect(result.description == "")
     }
 }

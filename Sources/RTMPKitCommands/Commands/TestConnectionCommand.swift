@@ -82,8 +82,11 @@ public struct TestConnectionCommand: AsyncParsableCommand {
             }
 
             await publisher.disconnect()
+        } catch let error as RTMPError {
+            display.showError(error.description)
+            throw ExitCode.failure
         } catch {
-            display.showError(error.localizedDescription)
+            display.showError("\(error)")
             throw ExitCode.failure
         }
     }

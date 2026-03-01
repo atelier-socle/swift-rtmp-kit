@@ -115,6 +115,47 @@ struct MediaFileReaderTagTests {
     }
 }
 
+// MARK: - MediaFileReaderError Descriptions
+
+@Suite("MediaFileReaderError — Description")
+struct MediaFileReaderErrorDescriptionTests {
+
+    @Test("fileNotFound includes path")
+    func fileNotFoundDescription() {
+        let err = MediaFileReaderError.fileNotFound("/tmp/missing.flv")
+        #expect(err.description == "File not found: /tmp/missing.flv")
+    }
+
+    @Test("emptyFile has human-readable description")
+    func emptyFileDescription() {
+        let err = MediaFileReaderError.emptyFile
+        #expect(
+            err.description == "File is empty or too small to be a valid FLV"
+        )
+    }
+
+    @Test("invalidHeader has human-readable description")
+    func invalidHeaderDescription() {
+        let err = MediaFileReaderError.invalidHeader
+        #expect(
+            err.description
+                == "Invalid FLV file: not a valid FLV header"
+        )
+    }
+
+    @Test("all cases have non-empty description")
+    func allDescriptionsNonEmpty() {
+        let errors: [MediaFileReaderError] = [
+            .fileNotFound("/path"),
+            .emptyFile,
+            .invalidHeader
+        ]
+        for error in errors {
+            #expect(!error.description.isEmpty)
+        }
+    }
+}
+
 // MARK: - Helpers
 
 private func writeTempFLV(flags: UInt8) throws -> String {

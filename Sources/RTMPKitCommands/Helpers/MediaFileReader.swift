@@ -177,3 +177,18 @@ public enum MediaFileReaderError: Error, Sendable, Equatable {
     /// The FLV header signature is invalid.
     case invalidHeader
 }
+
+extension MediaFileReaderError: CustomStringConvertible {
+
+    /// Human-readable error description.
+    public var description: String {
+        switch self {
+        case .fileNotFound(let path):
+            return "File not found: \(path)"
+        case .emptyFile:
+            return "File is empty or too small to be a valid FLV"
+        case .invalidHeader:
+            return "Invalid FLV file: not a valid FLV header"
+        }
+    }
+}

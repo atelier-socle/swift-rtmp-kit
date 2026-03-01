@@ -47,6 +47,9 @@ public actor RTMPPublisher {
     internal var messageTask: Task<Void, Never>?
     internal var currentConfiguration: RTMPConfiguration?
 
+    /// Server information from the connect response.
+    public internal(set) var serverInfo = ServerInfo()
+
     /// Creates a publisher with the default NIO transport.
     public init() {
         let (stream, continuation) = AsyncStream<RTMPEvent>.makeStream()
@@ -160,6 +163,7 @@ public actor RTMPPublisher {
         connection.reset()
         disassembler.reset()
         monitor.reset()
+        serverInfo = ServerInfo()
         currentConfiguration = nil
     }
 
