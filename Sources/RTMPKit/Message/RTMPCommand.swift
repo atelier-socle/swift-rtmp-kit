@@ -239,7 +239,10 @@ public struct ConnectProperties: Sendable, Equatable {
     /// AMF encoding version (0 = AMF0).
     public var objectEncoding: Double
 
-    /// Additional properties (e.g., fourCcList for Enhanced RTMP).
+    /// Additional key-value pairs to include in the connect command object.
+    ///
+    /// Used to pass platform-specific or custom properties such as
+    /// `fourCcList` for Enhanced RTMP negotiation.
     public var additional: [(String, AMF0Value)]
 
     /// Creates connect properties with default values.

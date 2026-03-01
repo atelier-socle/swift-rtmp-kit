@@ -64,7 +64,7 @@ public struct InfoCommand: AsyncParsableCommand {
 
     // MARK: - Private
 
-    private func printInfo(stats: ConnectionStatistics) {
+    func printInfo(stats: ConnectionStatistics) {
         let parsed = parseURL(url)
         print(ColorOutput.bold("Server Information"))
         print("  Server:        \(parsed.host):\(parsed.port)")
@@ -83,7 +83,7 @@ public struct InfoCommand: AsyncParsableCommand {
         }
     }
 
-    private func printJSON(stats: ConnectionStatistics) {
+    func printJSON(stats: ConnectionStatistics) {
         let parsed = parseURL(url)
         print("{")
         print("  \"host\": \"\(parsed.host)\",")
@@ -95,14 +95,14 @@ public struct InfoCommand: AsyncParsableCommand {
         print("}")
     }
 
-    private struct ParsedURL {
+    struct ParsedURL {
         let host: String
         let port: Int
         let useTLS: Bool
         let app: String
     }
 
-    private func parseURL(_ urlString: String) -> ParsedURL {
+    func parseURL(_ urlString: String) -> ParsedURL {
         let useTLS = urlString.hasPrefix("rtmps://")
         let defaultPort = useTLS ? 443 : 1935
         var remaining = urlString

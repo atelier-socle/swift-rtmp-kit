@@ -154,7 +154,7 @@ public struct PublishCommand: AsyncParsableCommand {
 
     // MARK: - Private
 
-    private func buildConfiguration() throws
+    func buildConfiguration() throws
         -> RTMPConfiguration
     {
         if let preset {
@@ -190,7 +190,7 @@ public struct PublishCommand: AsyncParsableCommand {
         )
     }
 
-    private func parseIngestServer() -> TwitchIngestServer? {
+    func parseIngestServer() -> TwitchIngestServer? {
         guard let ingest else { return nil }
         switch ingest.lowercased() {
         case "auto": return .auto

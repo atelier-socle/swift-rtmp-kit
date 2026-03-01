@@ -366,4 +366,44 @@ struct RTMPChannelHandlerOutgoingTests {
         defer { _ = try? channel.finish() }
         #expect(channel.isActive)
     }
+
+    @Test(
+        "malformed chunk data triggers error callback"
+    )
+    func malformedChunkDataTriggersError() throws {
+        let collector = TestCollector()
+        let channel = try makeConnectedChannel(
+            collector: collector)
+        defer { _ = try? channel.finish() }
+        completeHandshake(channel: channel)
+
+        // fmt=1 (sameStream) for CSID 5 which has no
+        // previous header → noPreviousHeader error
+        feedBytes(
+            [
+                0x45, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04,
+                0x05
+            ],
+            to: channel
+        )
+
+        #expect(collector.receivedError != nil)
+    }
+
+    @Test(
+        "channelActive with non-idle handshake triggers error"
+    )
+    func channelActiveTwiceTriggersError() throws {
+        let collector = TestCollector()
+        let channel = try makeConnectedChannel(
+            collector: collector)
+        defer { _ = try? channel.finish() }
+
+        // First channelActive already fired from connect.
+        // Fire again — handshake not idle, generateC0C1
+        // throws.
+        channel.pipeline.fireChannelActive()
+
+        #expect(collector.receivedError != nil)
+    }
 }

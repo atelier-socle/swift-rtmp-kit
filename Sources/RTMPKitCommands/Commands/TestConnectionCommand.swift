@@ -90,7 +90,7 @@ public struct TestConnectionCommand: AsyncParsableCommand {
 
     // MARK: - Private
 
-    private func buildConfiguration() throws
+    func buildConfiguration() throws
         -> RTMPConfiguration
     {
         if let preset {
