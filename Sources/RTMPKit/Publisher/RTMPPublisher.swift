@@ -30,6 +30,11 @@ public actor RTMPPublisher {
     /// Current publisher state.
     public var state: RTMPPublisherState { session.state }
 
+    /// Current connection statistics snapshot.
+    public var statistics: ConnectionStatistics {
+        monitor.snapshot(currentTime: monotonicNow())
+    }
+
     /// Event stream for monitoring state changes, server messages, errors.
     public let events: AsyncStream<RTMPEvent>
 
@@ -37,6 +42,7 @@ public actor RTMPPublisher {
     internal var session = RTMPSession()
     internal var connection = RTMPConnection()
     internal var disassembler = ChunkDisassembler()
+    internal var monitor = ConnectionMonitor()
     internal let eventContinuation: AsyncStream<RTMPEvent>.Continuation
     internal var messageTask: Task<Void, Never>?
     internal var currentConfiguration: RTMPConfiguration?
@@ -105,6 +111,7 @@ public actor RTMPPublisher {
                 port: parsed.port,
                 useTLS: parsed.useTLS
             )
+            monitor.markConnectionStart(at: monotonicNow())
             transitionState(to: .handshaking)
             try await performRTMPConnect(
                 streamKey: parsed,
@@ -152,6 +159,7 @@ public actor RTMPPublisher {
         session.reset()
         connection.reset()
         disassembler.reset()
+        monitor.reset()
         currentConfiguration = nil
     }
 
@@ -171,6 +179,10 @@ public actor RTMPPublisher {
             timestamp: timestamp, payload: tagBody
         )
         try await sendRTMPMessage(message, chunkStreamID: .video)
+        monitor.recordVideoFrameSent()
+        monitor.recordBytesSent(
+            UInt64(tagBody.count), at: monotonicNow()
+        )
     }
 
     /// Send an audio frame.
@@ -185,6 +197,10 @@ public actor RTMPPublisher {
             timestamp: timestamp, payload: tagBody
         )
         try await sendRTMPMessage(message, chunkStreamID: .audio)
+        monitor.recordAudioFrameSent()
+        monitor.recordBytesSent(
+            UInt64(tagBody.count), at: monotonicNow()
+        )
     }
 
     /// Send video decoder configuration (sequence header).

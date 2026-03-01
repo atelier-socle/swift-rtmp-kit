@@ -21,4 +21,7 @@ public enum RTMPEvent: Sendable {
 
     /// An error occurred (may or may not be fatal).
     case error(RTMPError)
+
+    /// Connection statistics update.
+    case statisticsUpdate(ConnectionStatistics)
 }

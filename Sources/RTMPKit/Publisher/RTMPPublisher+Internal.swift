@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Atelier Socle SAS
 
+import Dispatch
+
 // MARK: - Setup Sequence
 
 extension RTMPPublisher {
@@ -197,6 +199,7 @@ extension RTMPPublisher {
         if let ctrl = try? RTMPControlMessage.decode(
             typeID: message.typeID, payload: message.payload
         ), case .acknowledgement(let seq) = ctrl {
+            monitor.recordAcknowledgement(at: monotonicNow())
             emitEvent(.acknowledgementReceived(sequenceNumber: seq))
         }
     }
@@ -264,6 +267,7 @@ extension RTMPPublisher {
 
             connection.reset()
             disassembler.reset()
+            monitor.reset()
             session.reset()
             transitionState(to: .connecting)
 
@@ -331,6 +335,7 @@ extension RTMPPublisher {
     }
 
     internal func trackBytesReceived(_ message: RTMPMessage) {
+        monitor.recordBytesReceived(UInt64(message.payload.count))
         if let seqNum = connection.addBytesReceived(
             UInt64(message.payload.count)
         ) {
@@ -368,6 +373,10 @@ extension RTMPPublisher {
             if key == "description", case .string(let s) = val { desc = s }
         }
         return (code, desc)
+    }
+
+    internal func monotonicNow() -> UInt64 {
+        DispatchTime.now().uptimeNanoseconds
     }
 
     internal func mapError(_ error: Error) -> RTMPError {
