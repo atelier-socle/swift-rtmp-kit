@@ -61,7 +61,12 @@ let package = Package(
         // Core library tests
         .testTarget(
             name: "RTMPKitTests",
-            dependencies: ["RTMPKit"]
+            dependencies: [
+                "RTMPKit",
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOEmbedded", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio")
+            ]
         ),
 
         // CLI command tests — SEPARATE from core tests

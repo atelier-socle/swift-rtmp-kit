@@ -1,0 +1,107 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Atelier Socle SAS
+
+@testable import RTMPKit
+
+/// Mock transport for unit testing without real network connections.
+///
+/// Allows tests to script server responses and verify client sends.
+///
+/// `@unchecked Sendable`: test mock only — not used in production.
+/// Simplifies test scripting by allowing direct property mutation.
+public final class MockTransport: RTMPTransportProtocol, @unchecked Sendable {
+
+    /// Bytes sent by the client (for verification).
+    public private(set) var sentBytes: [[UInt8]] = []
+
+    /// Scripted messages to return from receive().
+    public var scriptedMessages: [RTMPMessage] = []
+
+    /// Whether connect() was called.
+    public private(set) var didConnect = false
+
+    /// Whether close() was called.
+    public private(set) var didClose = false
+
+    /// The host passed to connect().
+    public private(set) var connectHost: String?
+
+    /// The port passed to connect().
+    public private(set) var connectPort: Int?
+
+    /// Whether TLS was requested.
+    public private(set) var connectUseTLS: Bool?
+
+    /// Error to throw on next send/receive (for error testing).
+    public var nextError: Error?
+
+    /// Internal index for scripted messages.
+    private var messageIndex = 0
+
+    /// Whether the transport is currently connected.
+    public var isConnected: Bool {
+        didConnect && !didClose
+    }
+
+    /// Creates a mock transport.
+    public init() {}
+
+    /// Simulates connecting to a server.
+    public func connect(host: String, port: Int, useTLS: Bool) async throws {
+        if let error = nextError {
+            nextError = nil
+            throw error
+        }
+        connectHost = host
+        connectPort = port
+        connectUseTLS = useTLS
+        didConnect = true
+    }
+
+    /// Records sent bytes for verification.
+    public func send(_ bytes: [UInt8]) async throws {
+        if let error = nextError {
+            nextError = nil
+            throw error
+        }
+        guard isConnected else {
+            throw TransportError.notConnected
+        }
+        sentBytes.append(bytes)
+    }
+
+    /// Returns the next scripted message.
+    public func receive() async throws -> RTMPMessage {
+        if let error = nextError {
+            nextError = nil
+            throw error
+        }
+        guard isConnected else {
+            throw TransportError.notConnected
+        }
+        guard messageIndex < scriptedMessages.count else {
+            throw TransportError.connectionClosed
+        }
+        let message = scriptedMessages[messageIndex]
+        messageIndex += 1
+        return message
+    }
+
+    /// Simulates closing the connection.
+    public func close() async throws {
+        didClose = true
+    }
+
+    /// Resets the mock state for reuse.
+    public func reset() {
+        sentBytes.removeAll()
+        scriptedMessages.removeAll()
+        didConnect = false
+        didClose = false
+        connectHost = nil
+        connectPort = nil
+        connectUseTLS = nil
+        nextError = nil
+        messageIndex = 0
+    }
+}
