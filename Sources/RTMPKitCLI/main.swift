@@ -3,4 +3,9 @@
 
 import RTMPKitCommands
 
-RTMPKitCommand.main()
+@main
+struct RTMPKitCLI {
+    static func main() async {
+        await RTMPKitCommand.main()
+    }
+}
