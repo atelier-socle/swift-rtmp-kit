@@ -54,7 +54,7 @@ struct ChunkHeaderExtTimestampTests {
         let parsed0 = try ChunkHeader.parse(
             from: bytes, offset: &offset, previousHeaders: previousHeaders)
         #expect(parsed0 != nil)
-        previousHeaders[3] = try #require(parsed0)
+        previousHeaders[3] = parsed0
 
         // Now build fmt 1 with extended timestamp (>=0xFFFFFF)
         let h1 = ChunkHeader(
@@ -78,7 +78,7 @@ struct ChunkHeaderExtTimestampTests {
             format: .full, chunkStreamID: 4,
             timestamp: 0, messageLength: 5,
             messageTypeID: 9, messageStreamID: 1)
-        var previousHeaders: [UInt32: ChunkHeader] = [4: h0]
+        let previousHeaders: [UInt32: ChunkHeader] = [4: h0]
 
         // Build fmt 2 with extended timestamp
         let h2 = ChunkHeader(
@@ -100,7 +100,7 @@ struct ChunkHeaderExtTimestampTests {
             format: .full, chunkStreamID: 5,
             timestamp: 0x0100_0000, messageLength: 5,
             messageTypeID: 9, messageStreamID: 1)
-        var previousHeaders: [UInt32: ChunkHeader] = [5: prev]
+        let previousHeaders: [UInt32: ChunkHeader] = [5: prev]
 
         // Build fmt 3 continuation — must carry extended timestamp
         let h3 = ChunkHeader(

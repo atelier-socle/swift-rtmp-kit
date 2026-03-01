@@ -11,7 +11,7 @@ struct PublishCommandBuildConfigTests {
 
     @Test("preset twitch returns twitch config")
     func presetTwitch() throws {
-        var cmd = try PublishCommand.parse([
+        let cmd = try PublishCommand.parse([
             "--preset", "twitch",
             "--key", "live_abc",
             "--file", "video.flv"
@@ -23,7 +23,7 @@ struct PublishCommandBuildConfigTests {
 
     @Test("preset youtube returns youtube config")
     func presetYouTube() throws {
-        var cmd = try PublishCommand.parse([
+        let cmd = try PublishCommand.parse([
             "--preset", "youtube",
             "--key", "yt-key",
             "--file", "video.flv"
@@ -35,7 +35,7 @@ struct PublishCommandBuildConfigTests {
 
     @Test("preset facebook returns facebook config")
     func presetFacebook() throws {
-        var cmd = try PublishCommand.parse([
+        let cmd = try PublishCommand.parse([
             "--preset", "facebook",
             "--key", "fb-key",
             "--file", "video.flv"
@@ -47,7 +47,7 @@ struct PublishCommandBuildConfigTests {
 
     @Test("preset kick returns kick config")
     func presetKick() throws {
-        var cmd = try PublishCommand.parse([
+        let cmd = try PublishCommand.parse([
             "--preset", "kick",
             "--key", "kick-key",
             "--file", "video.flv"
@@ -58,7 +58,7 @@ struct PublishCommandBuildConfigTests {
 
     @Test("url builds custom config")
     func urlConfig() throws {
-        var cmd = try PublishCommand.parse([
+        let cmd = try PublishCommand.parse([
             "--url", "rtmp://myserver/live",
             "--key", "mykey",
             "--file", "video.flv"
@@ -72,7 +72,7 @@ struct PublishCommandBuildConfigTests {
 
     @Test("url with custom chunk size")
     func urlCustomChunkSize() throws {
-        var cmd = try PublishCommand.parse([
+        let cmd = try PublishCommand.parse([
             "--url", "rtmp://myserver/live",
             "--key", "mykey",
             "--file", "video.flv",
@@ -84,7 +84,7 @@ struct PublishCommandBuildConfigTests {
 
     @Test("url with no-enhanced-rtmp flag")
     func urlNoEnhancedRTMP() throws {
-        var cmd = try PublishCommand.parse([
+        let cmd = try PublishCommand.parse([
             "--url", "rtmp://myserver/live",
             "--key", "mykey",
             "--file", "video.flv",
@@ -96,7 +96,7 @@ struct PublishCommandBuildConfigTests {
 
     @Test("twitch with ingest us-east")
     func twitchIngestUsEast() throws {
-        var cmd = try PublishCommand.parse([
+        let cmd = try PublishCommand.parse([
             "--preset", "twitch",
             "--key", "key",
             "--file", "video.flv",
@@ -108,7 +108,7 @@ struct PublishCommandBuildConfigTests {
 
     @Test("twitch with ingest us-west")
     func twitchIngestUsWest() throws {
-        var cmd = try PublishCommand.parse([
+        let cmd = try PublishCommand.parse([
             "--preset", "twitch",
             "--key", "key",
             "--file", "video.flv",
@@ -120,7 +120,7 @@ struct PublishCommandBuildConfigTests {
 
     @Test("twitch with ingest europe")
     func twitchIngestEurope() throws {
-        var cmd = try PublishCommand.parse([
+        let cmd = try PublishCommand.parse([
             "--preset", "twitch",
             "--key", "key",
             "--file", "video.flv",
@@ -132,7 +132,7 @@ struct PublishCommandBuildConfigTests {
 
     @Test("twitch with ingest asia")
     func twitchIngestAsia() throws {
-        var cmd = try PublishCommand.parse([
+        let cmd = try PublishCommand.parse([
             "--preset", "twitch",
             "--key", "key",
             "--file", "video.flv",
@@ -144,7 +144,7 @@ struct PublishCommandBuildConfigTests {
 
     @Test("twitch with ingest south-america")
     func twitchIngestSouthAmerica() throws {
-        var cmd = try PublishCommand.parse([
+        let cmd = try PublishCommand.parse([
             "--preset", "twitch",
             "--key", "key",
             "--file", "video.flv",
@@ -156,7 +156,7 @@ struct PublishCommandBuildConfigTests {
 
     @Test("twitch with ingest australia")
     func twitchIngestAustralia() throws {
-        var cmd = try PublishCommand.parse([
+        let cmd = try PublishCommand.parse([
             "--preset", "twitch",
             "--key", "key",
             "--file", "video.flv",
@@ -168,7 +168,7 @@ struct PublishCommandBuildConfigTests {
 
     @Test("twitch with ingest auto")
     func twitchIngestAuto() throws {
-        var cmd = try PublishCommand.parse([
+        let cmd = try PublishCommand.parse([
             "--preset", "twitch",
             "--key", "key",
             "--file", "video.flv",

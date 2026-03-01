@@ -60,7 +60,7 @@ struct HandshakeShowcaseTests {
     @Test("Handshake with corrupted S2")
     func corruptedS2() throws {
         var handshake = RTMPHandshake()
-        let c0c1 = try handshake.generateC0C1()
+        _ = try handshake.generateC0C1()
 
         // S0 + S1 valid, S2 with wrong random data
         let s0: [UInt8] = [HandshakeBytes.version]

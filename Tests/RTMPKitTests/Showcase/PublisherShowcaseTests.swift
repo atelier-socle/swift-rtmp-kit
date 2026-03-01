@@ -36,7 +36,7 @@ struct PublisherStateMachineShowcaseTests {
 
     @Test("State machine rejects invalid transitions")
     func rejectsInvalidTransitions() {
-        var session = RTMPSession()
+        let session = RTMPSession()
 
         // idle → publishing is not valid
         #expect(!session.canTransition(to: .publishing))
@@ -55,10 +55,8 @@ struct PublisherStateMachineShowcaseTests {
         session.transition(to: .disconnected)
 
         // Second disconnect attempt — already disconnected
-        let ok = session.transition(to: .disconnected)
+        _ = session.transition(to: .disconnected)
         #expect(session.state == .disconnected)
-        // Whether it returns true or false, state must remain .disconnected
-        _ = ok
     }
 
     @Test("Reconnection sequence via state machine")

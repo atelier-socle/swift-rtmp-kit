@@ -193,14 +193,10 @@ struct TransportShowcaseTests {
     )
     func protocolConformance() {
         // MockTransport conforms to RTMPTransportProtocol
-        let mock: any RTMPTransportProtocol =
-            MockTransport()
-        _ = mock
+        _ = MockTransport() as any RTMPTransportProtocol
 
         // NIOTransport also conforms (compile-time check)
-        let nio: any RTMPTransportProtocol =
-            NIOTransport()
-        _ = nio
+        _ = NIOTransport() as any RTMPTransportProtocol
 
         // The protocol requires: connect, send,
         // receive, close, isConnected
