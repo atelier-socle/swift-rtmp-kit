@@ -24,4 +24,10 @@ public enum RTMPEvent: Sendable {
 
     /// Connection statistics update.
     case statisticsUpdate(ConnectionStatistics)
+
+    /// Adaptive bitrate recommendation emitted by the network condition monitor.
+    case bitrateRecommendation(BitrateRecommendation)
+
+    /// Network condition snapshot from the adaptive bitrate monitor.
+    case networkSnapshot(NetworkSnapshot)
 }

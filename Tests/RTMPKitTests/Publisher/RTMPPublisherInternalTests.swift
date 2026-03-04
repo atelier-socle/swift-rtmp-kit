@@ -280,7 +280,7 @@ struct RTMPPublisherMatchResultTests {
 
 // MARK: - trackBytesReceived Tests
 
-@Suite("RTMPPublisher+Internal — trackBytesReceived")
+@Suite("RTMPPublisher+Internal — trackBytesReceived", .timeLimit(.minutes(1)))
 struct RTMPPublisherTrackBytesTests {
 
     @Test("tracking bytes triggers ack when window exceeded")
@@ -352,7 +352,7 @@ struct RTMPPublisherStatisticsTests {
 
 // MARK: - attemptReconnect Tests
 
-@Suite("RTMPPublisher+Internal — attemptReconnect")
+@Suite("RTMPPublisher+Internal — attemptReconnect", .timeLimit(.minutes(1)))
 struct RTMPPublisherReconnectTests {
 
     @Test("reconnect with disabled policy is no-op")
@@ -482,7 +482,7 @@ extension RTMPPublisher {
 
 // MARK: - startMessageLoop Tests
 
-@Suite("RTMPPublisher+Internal — startMessageLoop")
+@Suite("RTMPPublisher+Internal — startMessageLoop", .timeLimit(.minutes(1)))
 struct RTMPPublisherStartMessageLoopTests {
 
     @Test("startMessageLoop processes incoming messages")
@@ -515,7 +515,7 @@ struct RTMPPublisherStartMessageLoopTests {
 
 // MARK: - awaitPublishStatus edge case
 
-@Suite("RTMPPublisher+Internal — awaitPublishStatus")
+@Suite("RTMPPublisher+Internal — awaitPublishStatus", .timeLimit(.minutes(1)))
 struct RTMPPublisherAwaitPublishStatusTests {
 
     @Test("publish with protocol messages before onStatus")

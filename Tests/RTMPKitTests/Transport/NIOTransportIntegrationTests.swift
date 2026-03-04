@@ -151,7 +151,8 @@ private func startBadHandshakeServer(
 
 @Suite(
     "NIOTransport — Local Server Integration",
-    .enabled(if: ProcessInfo.processInfo.environment["CI"] == nil)
+    .enabled(if: ProcessInfo.processInfo.environment["CI"] == nil),
+    .timeLimit(.minutes(1))
 )
 struct NIOTransportIntegrationTests {
 
@@ -415,7 +416,8 @@ struct NIOTransportIntegrationTests {
 
 @Suite(
     "NIOTransport — Waiting Receiver Paths",
-    .enabled(if: ProcessInfo.processInfo.environment["CI"] == nil)
+    .enabled(if: ProcessInfo.processInfo.environment["CI"] == nil),
+    .timeLimit(.minutes(1))
 )
 struct NIOTransportWaitingReceiverTests {
 

@@ -5,7 +5,7 @@ import Testing
 
 @testable import RTMPKit
 
-@Suite("ChunkStream Showcase")
+@Suite("ChunkStream Showcase", .timeLimit(.minutes(1)))
 struct ChunkStreamShowcaseTests {
 
     @Test("Multiplex audio (CSID 4) and video (CSID 6) at 4096 chunk size")
