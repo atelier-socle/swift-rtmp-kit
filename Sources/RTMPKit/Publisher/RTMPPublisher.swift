@@ -50,6 +50,13 @@ public actor RTMPPublisher {
     /// Server information from the connect response.
     public internal(set) var serverInfo = ServerInfo()
 
+    // MARK: - Adaptive Bitrate
+
+    internal var abrMonitor: NetworkConditionMonitor?
+    internal var abrMonitorTask: Task<Void, Never>?
+    internal var consecutiveDropCount: Int = 0
+    internal var liveVideoBitrate: Int = 3_000_000
+
     /// Creates a publisher with the default NIO transport.
     public init() {
         let (stream, continuation) = AsyncStream<RTMPEvent>.makeStream()
@@ -66,8 +73,25 @@ public actor RTMPPublisher {
         self.transport = transport
     }
 
+    /// The current live video bitrate as adjusted by the adaptive bitrate system.
+    ///
+    /// Equals the configured initial bitrate when ABR is disabled.
+    public var currentVideoBitrate: Int { liveVideoBitrate }
+
+    /// Manually override the current bitrate recommendation.
+    ///
+    /// Only effective when the adaptive bitrate policy is not `.disabled`.
+    ///
+    /// - Parameter bitrate: The target bitrate in bits per second.
+    public func forceVideoBitrate(_ bitrate: Int) async {
+        guard let monitor = abrMonitor else { return }
+        await monitor.forceRecommendation(bitrate: bitrate)
+        liveVideoBitrate = bitrate
+    }
+
     deinit {
         messageTask?.cancel()
+        abrMonitorTask?.cancel()
         eventContinuation.finish()
     }
 
@@ -82,6 +106,7 @@ public actor RTMPPublisher {
     /// - Parameter configuration: The complete streaming configuration.
     public func publish(configuration: RTMPConfiguration) async throws {
         currentConfiguration = configuration
+        liveVideoBitrate = 3_000_000
         try await publish(
             url: configuration.url,
             streamKey: configuration.streamKey,
@@ -126,6 +151,7 @@ public actor RTMPPublisher {
             try await performCreateStream(streamName: parsed.key)
             try await performPublish(streamName: parsed.key)
             transitionState(to: .publishing)
+            await startABRMonitorIfNeeded()
 
             if let metadata {
                 try await updateMetadata(metadata)
@@ -142,6 +168,12 @@ public actor RTMPPublisher {
     public func disconnect() async {
         messageTask?.cancel()
         messageTask = nil
+        abrMonitorTask?.cancel()
+        abrMonitorTask = nil
+        await abrMonitor?.stop()
+        abrMonitor = nil
+        consecutiveDropCount = 0
+        liveVideoBitrate = 3_000_000
 
         if session.state == .publishing, let streamID = connection.streamID {
             let txn1 = connection.allocateTransactionID()
@@ -170,12 +202,37 @@ public actor RTMPPublisher {
     // MARK: - Media Sending
 
     /// Send a video frame.
+    ///
+    /// When adaptive bitrate is active and congestion is detected,
+    /// non-keyframe frames may be dropped according to the configured
+    /// ``FrameDroppingStrategy``.
     public func sendVideo(
         _ data: [UInt8], timestamp: UInt32, isKeyframe: Bool
     ) async throws {
         guard session.state == .publishing else {
             throw RTMPError.notPublishing
         }
+
+        // ABR frame dropping evaluation
+        if let abrMon = abrMonitor, let config = currentConfiguration {
+            if let snapshot = await abrMon.currentSnapshot {
+                let congestion = computeCongestionLevel(from: snapshot, configuration: config)
+                let priority: FrameDroppingStrategy.FramePriority = isKeyframe ? .iFrame : .pFrame
+                if config.frameDroppingStrategy.shouldDrop(
+                    priority: priority,
+                    consecutiveDropCount: consecutiveDropCount,
+                    congestionLevel: congestion
+                ) {
+                    consecutiveDropCount += 1
+                    await abrMon.recordDroppedFrame()
+                    monitor.recordDroppedFrame()
+                    return
+                }
+            }
+            consecutiveDropCount = 0
+            await abrMon.recordSentFrame()
+        }
+
         let tagBody = FLVVideoTag.avcNALU(data, isKeyframe: isKeyframe)
         let message = RTMPMessage(
             typeID: RTMPMessage.typeIDVideo,
@@ -187,6 +244,10 @@ public actor RTMPPublisher {
         monitor.recordBytesSent(
             UInt64(tagBody.count), at: monotonicNow()
         )
+
+        if let abrMon = abrMonitor {
+            await abrMon.recordBytesSent(tagBody.count, pendingBytes: 0)
+        }
     }
 
     /// Send an audio frame.
@@ -205,6 +266,10 @@ public actor RTMPPublisher {
         monitor.recordBytesSent(
             UInt64(tagBody.count), at: monotonicNow()
         )
+
+        if let abrMon = abrMonitor {
+            await abrMon.recordBytesSent(tagBody.count, pendingBytes: 0)
+        }
     }
 
     /// Send video decoder configuration (sequence header).

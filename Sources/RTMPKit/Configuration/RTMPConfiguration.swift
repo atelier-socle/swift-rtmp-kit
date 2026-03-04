@@ -61,6 +61,18 @@ public struct RTMPConfiguration: Sendable, Equatable {
     /// Transport-level configuration (timeouts, buffer sizes).
     public var transportConfiguration: TransportConfiguration
 
+    /// Adaptive bitrate policy (default: ``AdaptiveBitratePolicy/disabled``).
+    ///
+    /// When set to a non-disabled policy, the publisher monitors network
+    /// conditions and adjusts the video bitrate automatically.
+    public var adaptiveBitrate: AdaptiveBitratePolicy
+
+    /// Frame dropping strategy used when congestion is detected (default: ``FrameDroppingStrategy/default``).
+    ///
+    /// Controls which frames are dropped and in what order during
+    /// network congestion to maintain stream stability.
+    public var frameDroppingStrategy: FrameDroppingStrategy
+
     /// Create a configuration with a URL and stream key.
     ///
     /// - Parameters:
@@ -71,6 +83,8 @@ public struct RTMPConfiguration: Sendable, Equatable {
     ///   - reconnectPolicy: Reconnection strategy (default: `.default`).
     ///   - flashVersion: Flash version string for connect command.
     ///   - transportConfiguration: Transport-level settings.
+    ///   - adaptiveBitrate: Adaptive bitrate policy (default: `.disabled`).
+    ///   - frameDroppingStrategy: Frame dropping strategy (default: `.default`).
     public init(
         url: String,
         streamKey: String,
@@ -78,7 +92,9 @@ public struct RTMPConfiguration: Sendable, Equatable {
         enhancedRTMP: Bool = true,
         reconnectPolicy: ReconnectPolicy = .default,
         flashVersion: String = "FMLE/3.0 (compatible; FMSc/1.0)",
-        transportConfiguration: TransportConfiguration = .default
+        transportConfiguration: TransportConfiguration = .default,
+        adaptiveBitrate: AdaptiveBitratePolicy = .disabled,
+        frameDroppingStrategy: FrameDroppingStrategy = .default
     ) {
         self.url = url
         self.streamKey = streamKey
@@ -89,6 +105,8 @@ public struct RTMPConfiguration: Sendable, Equatable {
         self.metadata = nil
         self.flashVersion = flashVersion
         self.transportConfiguration = transportConfiguration
+        self.adaptiveBitrate = adaptiveBitrate
+        self.frameDroppingStrategy = frameDroppingStrategy
     }
 
     // MARK: - Platform Convenience Factory Methods

@@ -338,6 +338,8 @@ extension RTMPPublisher {
                 try await performCreateStream(streamName: parsed.key)
                 try await performPublish(streamName: parsed.key)
                 transitionState(to: .publishing)
+                liveVideoBitrate = 3_000_000
+                await startABRMonitorIfNeeded()
 
                 if let metadata = config.metadata {
                     try await updateMetadata(metadata)
