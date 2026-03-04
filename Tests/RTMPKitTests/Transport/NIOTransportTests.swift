@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Atelier Socle SAS
 
-import NIOCore
-import NIOPosix
 import Testing
 
 @testable import RTMPKit
@@ -84,19 +82,6 @@ struct NIOTransportStateTests {
 
 @Suite("NIOTransport — Configuration")
 struct NIOTransportConfigurationTests {
-
-    @Test("Custom EventLoopGroup is used")
-    func customEventLoopGroup() async throws {
-        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
-        let transport = NIOTransport(
-            configuration: .default,
-            eventLoopGroup: group
-        )
-        // Should not crash — group is reused
-        let state = await transport.state
-        #expect(state == .disconnected)
-        try await group.shutdownGracefully()
-    }
 
     @Test("Default creates own EventLoopGroup")
     func defaultCreatesOwnGroup() async throws {

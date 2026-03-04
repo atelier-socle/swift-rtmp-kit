@@ -12,16 +12,20 @@ struct RTMPTransportProtocolTests {
     func connectSetsDidConnect() async throws {
         let mock = MockTransport()
         try await mock.connect(host: "localhost", port: 1935, useTLS: false)
-        #expect(mock.didConnect)
+        let connected = await mock.didConnect
+        #expect(connected)
     }
 
     @Test("connect records host, port, useTLS")
     func connectRecordsParams() async throws {
         let mock = MockTransport()
         try await mock.connect(host: "stream.example.com", port: 443, useTLS: true)
-        #expect(mock.connectHost == "stream.example.com")
-        #expect(mock.connectPort == 443)
-        #expect(mock.connectUseTLS == true)
+        let host = await mock.connectHost
+        let port = await mock.connectPort
+        let tls = await mock.connectUseTLS
+        #expect(host == "stream.example.com")
+        #expect(port == 443)
+        #expect(tls == true)
     }
 
     @Test("send records bytes")
@@ -29,8 +33,9 @@ struct RTMPTransportProtocolTests {
         let mock = MockTransport()
         try await mock.connect(host: "localhost", port: 1935, useTLS: false)
         try await mock.send([0x01, 0x02, 0x03])
-        #expect(mock.sentBytes.count == 1)
-        #expect(mock.sentBytes[0] == [0x01, 0x02, 0x03])
+        let sent = await mock.sentBytes
+        #expect(sent.count == 1)
+        #expect(sent[0] == [0x01, 0x02, 0x03])
     }
 
     @Test("multiple sends accumulate in sentBytes")
@@ -40,7 +45,8 @@ struct RTMPTransportProtocolTests {
         try await mock.send([0x01])
         try await mock.send([0x02])
         try await mock.send([0x03])
-        #expect(mock.sentBytes.count == 3)
+        let count = await mock.sentBytes.count
+        #expect(count == 3)
     }
 
     @Test("receive returns scripted messages in order")
@@ -48,7 +54,7 @@ struct RTMPTransportProtocolTests {
         let mock = MockTransport()
         let msg1 = RTMPMessage(typeID: 1, streamID: 0, timestamp: 0, payload: [0x01])
         let msg2 = RTMPMessage(typeID: 2, streamID: 0, timestamp: 0, payload: [0x02])
-        mock.scriptedMessages = [msg1, msg2]
+        await mock.setScriptedMessages([msg1, msg2])
         try await mock.connect(host: "localhost", port: 1935, useTLS: false)
         let r1 = try await mock.receive()
         let r2 = try await mock.receive()
@@ -61,24 +67,28 @@ struct RTMPTransportProtocolTests {
         let mock = MockTransport()
         try await mock.connect(host: "localhost", port: 1935, useTLS: false)
         try await mock.close()
-        #expect(mock.didClose)
+        let closed = await mock.didClose
+        #expect(closed)
     }
 
     @Test("isConnected reflects state")
     func isConnectedReflectsState() async throws {
         let mock = MockTransport()
-        #expect(!mock.isConnected)
+        var connected = await mock.isConnected
+        #expect(!connected)
         try await mock.connect(host: "localhost", port: 1935, useTLS: false)
-        #expect(mock.isConnected)
+        connected = await mock.isConnected
+        #expect(connected)
         try await mock.close()
-        #expect(!mock.isConnected)
+        connected = await mock.isConnected
+        #expect(!connected)
     }
 
     @Test("nextError causes send to throw")
     func nextErrorSendThrows() async throws {
         let mock = MockTransport()
         try await mock.connect(host: "localhost", port: 1935, useTLS: false)
-        mock.nextError = TransportError.connectionClosed
+        await mock.setNextError(TransportError.connectionClosed)
         do {
             try await mock.send([0x01])
             Issue.record("Expected error")
@@ -91,7 +101,7 @@ struct RTMPTransportProtocolTests {
     func nextErrorReceiveThrows() async throws {
         let mock = MockTransport()
         try await mock.connect(host: "localhost", port: 1935, useTLS: false)
-        mock.nextError = TransportError.connectionClosed
+        await mock.setNextError(TransportError.connectionClosed)
         do {
             _ = try await mock.receive()
             Issue.record("Expected error")
@@ -126,7 +136,7 @@ struct RTMPTransportProtocolTests {
     @Test("nextError causes connect to throw")
     func nextErrorConnectThrows() async {
         let mock = MockTransport()
-        mock.nextError = TransportError.connectionTimeout
+        await mock.setNextError(TransportError.connectionTimeout)
         do {
             try await mock.connect(host: "localhost", port: 1935, useTLS: false)
             Issue.record("Expected error")
@@ -140,11 +150,16 @@ struct RTMPTransportProtocolTests {
         let mock = MockTransport()
         try await mock.connect(host: "localhost", port: 1935, useTLS: false)
         try await mock.send([0x01])
-        mock.reset()
-        #expect(!mock.didConnect)
-        #expect(!mock.didClose)
-        #expect(mock.sentBytes.isEmpty)
-        #expect(mock.scriptedMessages.isEmpty)
-        #expect(mock.connectHost == nil)
+        await mock.reset()
+        let connected = await mock.didConnect
+        let closed = await mock.didClose
+        let sent = await mock.sentBytes
+        let scripted = await mock.scriptedMessages
+        let host = await mock.connectHost
+        #expect(!connected)
+        #expect(!closed)
+        #expect(sent.isEmpty)
+        #expect(scripted.isEmpty)
+        #expect(host == nil)
     }
 }

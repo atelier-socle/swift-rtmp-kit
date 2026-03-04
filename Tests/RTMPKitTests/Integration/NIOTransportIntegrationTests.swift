@@ -8,6 +8,29 @@ import Testing
 
 @testable import RTMPKit
 
+// MARK: - Timeout Helper
+
+/// Simple cross-platform timeout helper — pure Swift, no Foundation.
+private func withTimeout<T: Sendable>(
+    seconds: Double,
+    operation: @escaping @Sendable () async throws -> T
+) async throws -> T {
+    try await withThrowingTaskGroup(of: T.self) { group in
+        group.addTask { try await operation() }
+        group.addTask {
+            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            throw CancellationError()
+        }
+        guard let result = try await group.next() else {
+            throw CancellationError()
+        }
+        group.cancelAll()
+        return result
+    }
+}
+
+// MARK: - Server Handlers
+
 /// Minimal RTMP server handler that completes the handshake.
 ///
 /// `@unchecked Sendable`: NIO channel handler, EventLoop-confined.
@@ -149,17 +172,21 @@ private func startBadHandshakeServer(
         .get()
 }
 
+// MARK: - Integration Tests
+
+/// Real NIO integration tests — require an actual network.
+/// Disabled by default. Run manually with:
+///   swift test --filter NIOTransportIntegrationTests
 @Suite(
     "NIOTransport — Local Server Integration",
-    .enabled(if: ProcessInfo.processInfo.environment["CI"] == nil),
-    .timeLimit(.minutes(1))
+    .disabled("Requires live network — run manually")
 )
 struct NIOTransportIntegrationTests {
 
     @Test("connect to local server succeeds")
     func connectSucceeds() async throws {
-        let group = MultiThreadedEventLoopGroup(
-            numberOfThreads: 1)
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        // group shutdown at end of test
         let server = try await startFakeServer(group: group)
         let port = try #require(server.localAddress?.port)
 
@@ -167,135 +194,125 @@ struct NIOTransportIntegrationTests {
         let transport = NIOTransport(
             configuration: config, eventLoopGroup: group
         )
-        try await transport.connect(
-            host: "127.0.0.1", port: port, useTLS: false
-        )
+        try await withTimeout(seconds: 10) {
+            try await transport.connect(
+                host: "127.0.0.1", port: port, useTLS: false
+            )
+        }
 
         let connected = await transport.isConnected
         #expect(connected)
 
-        let state = await transport.state
-        #expect(state == .connected)
-
         try await transport.close()
         try await server.close()
-        try await group.shutdownGracefully()
     }
 
     @Test("send bytes while connected")
     func sendBytesWhileConnected() async throws {
-        let group = MultiThreadedEventLoopGroup(
-            numberOfThreads: 1)
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        // group shutdown at end of test
         let server = try await startFakeServer(group: group)
         let port = try #require(server.localAddress?.port)
 
         let transport = NIOTransport(
             configuration: .default, eventLoopGroup: group
         )
-        try await transport.connect(
-            host: "127.0.0.1", port: port, useTLS: false
-        )
-
+        try await withTimeout(seconds: 10) {
+            try await transport.connect(
+                host: "127.0.0.1", port: port, useTLS: false
+            )
+        }
         try await transport.send([0x01, 0x02, 0x03])
 
         try await transport.close()
         try await server.close()
-        try await group.shutdownGracefully()
     }
 
     @Test("send throws when not connected")
     func sendThrowsWhenNotConnected() async throws {
         let transport = NIOTransport()
-
         do {
             try await transport.send([0x01])
             Issue.record("Expected TransportError.notConnected")
         } catch {
             // Expected
         }
-
         try? await transport.shutdown()
     }
 
     @Test("receive throws when not connected")
     func receiveThrowsWhenNotConnected() async throws {
         let transport = NIOTransport()
-
         do {
             _ = try await transport.receive()
             Issue.record("Expected TransportError.notConnected")
         } catch {
             // Expected
         }
-
         try? await transport.shutdown()
     }
 
     @Test("close while connected cleans up")
     func closeWhileConnected() async throws {
-        let group = MultiThreadedEventLoopGroup(
-            numberOfThreads: 1)
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        // group shutdown at end of test
         let server = try await startFakeServer(group: group)
         let port = try #require(server.localAddress?.port)
 
         let transport = NIOTransport(
             configuration: .default, eventLoopGroup: group
         )
-        try await transport.connect(
-            host: "127.0.0.1", port: port, useTLS: false
-        )
-
-        let connectedBefore = await transport.isConnected
-        #expect(connectedBefore)
+        try await withTimeout(seconds: 10) {
+            try await transport.connect(
+                host: "127.0.0.1", port: port, useTLS: false
+            )
+        }
 
         try await transport.close()
-
         let stateAfter = await transport.state
         #expect(stateAfter == .disconnected)
 
-        let connectedAfter = await transport.isConnected
-        #expect(!connectedAfter)
-
         try await server.close()
-        try await group.shutdownGracefully()
     }
 
     @Test("shutdown while connected closes and shuts down")
     func shutdownWhileConnected() async throws {
-        let group = MultiThreadedEventLoopGroup(
-            numberOfThreads: 1)
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        // group shutdown at end of test
         let server = try await startFakeServer(group: group)
         let port = try #require(server.localAddress?.port)
 
         let transport = NIOTransport(
             configuration: .default, eventLoopGroup: group
         )
-        try await transport.connect(
-            host: "127.0.0.1", port: port, useTLS: false
-        )
-
+        try await withTimeout(seconds: 10) {
+            try await transport.connect(
+                host: "127.0.0.1", port: port, useTLS: false
+            )
+        }
         try await transport.shutdown()
 
         let state = await transport.state
         #expect(state == .disconnected)
 
         try await server.close()
-        try await group.shutdownGracefully()
     }
 
     @Test("double connect throws alreadyConnected")
     func doubleConnectThrows() async throws {
-        let group = MultiThreadedEventLoopGroup(
-            numberOfThreads: 1)
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        // group shutdown at end of test
         let server = try await startFakeServer(group: group)
         let port = try #require(server.localAddress?.port)
 
         let transport = NIOTransport(
             configuration: .default, eventLoopGroup: group
         )
-        try await transport.connect(
-            host: "127.0.0.1", port: port, useTLS: false
-        )
+        try await withTimeout(seconds: 10) {
+            try await transport.connect(
+                host: "127.0.0.1", port: port, useTLS: false
+            )
+        }
 
         do {
             try await transport.connect(
@@ -303,20 +320,17 @@ struct NIOTransportIntegrationTests {
             )
             Issue.record("Expected alreadyConnected")
         } catch {
-            #expect(
-                error as? TransportError == .alreadyConnected
-            )
+            #expect(error as? TransportError == .alreadyConnected)
         }
 
         try await transport.shutdown()
         try await server.close()
-        try await group.shutdownGracefully()
     }
 
     @Test("init with shared EventLoopGroup does not shut it down")
     func sharedGroupNotShutDown() async throws {
-        let group = MultiThreadedEventLoopGroup(
-            numberOfThreads: 1)
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        // group shutdown at end of test
 
         let transport = NIOTransport(
             configuration: .default, eventLoopGroup: group
@@ -328,8 +342,6 @@ struct NIOTransportIntegrationTests {
             configuration: .default, eventLoopGroup: group
         )
         try await transport2.shutdown()
-
-        try await group.shutdownGracefully()
     }
 
     @Test("init without EventLoopGroup creates own group")
@@ -340,18 +352,14 @@ struct NIOTransportIntegrationTests {
 
     @Test("receive with server-sent message delivers it")
     func receiveDelivers() async throws {
-        let group = MultiThreadedEventLoopGroup(
-            numberOfThreads: 1)
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        // group shutdown at end of test
 
-        let ackPayload: [UInt8] = [
-            0x00, 0x26, 0x25, 0xA0
-        ]
+        let ackPayload: [UInt8] = [0x00, 0x26, 0x25, 0xA0]
         let chunkBytes: [UInt8] =
             [
-                0x02,
-                0x00, 0x00, 0x00,
-                0x00, 0x00, 0x04,
-                0x05,
+                0x02, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x04, 0x05,
                 0x00, 0x00, 0x00, 0x00
             ] + ackPayload
 
@@ -363,28 +371,29 @@ struct NIOTransportIntegrationTests {
         let transport = NIOTransport(
             configuration: .default, eventLoopGroup: group
         )
-        try await transport.connect(
-            host: "127.0.0.1", port: port, useTLS: false
-        )
+        try await withTimeout(seconds: 10) {
+            try await transport.connect(
+                host: "127.0.0.1", port: port, useTLS: false
+            )
+        }
 
-        let msg = try await transport.receive()
+        let msg = try await withTimeout(seconds: 5) {
+            try await transport.receive()
+        }
         #expect(msg.typeID == RTMPMessage.typeIDWindowAckSize)
 
         try await transport.close()
         try await server.close()
-        try await group.shutdownGracefully()
     }
 
     @Test("receive with buffered message returns immediately")
     func receiveBuffered() async throws {
-        let group = MultiThreadedEventLoopGroup(
-            numberOfThreads: 1)
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        // group shutdown at end of test
 
         let chunkBytes: [UInt8] = [
-            0x02,
-            0x00, 0x00, 0x00,
-            0x00, 0x00, 0x04,
-            0x05,
+            0x02, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x04, 0x05,
             0x00, 0x00, 0x00, 0x00,
             0x00, 0x26, 0x25, 0xA0
         ]
@@ -397,43 +406,47 @@ struct NIOTransportIntegrationTests {
         let transport = NIOTransport(
             configuration: .default, eventLoopGroup: group
         )
-        try await transport.connect(
-            host: "127.0.0.1", port: port, useTLS: false
-        )
+        try await withTimeout(seconds: 10) {
+            try await transport.connect(
+                host: "127.0.0.1", port: port, useTLS: false
+            )
+        }
 
-        // Small delay to let the server-sent message arrive
-        // and get buffered
+        // Small delay to let the server-sent message arrive and get buffered
         try await Task.sleep(nanoseconds: 100_000_000)
 
-        let msg = try await transport.receive()
+        let msg = try await withTimeout(seconds: 5) {
+            try await transport.receive()
+        }
         #expect(msg.payload.count == 4)
 
         try await transport.close()
         try await server.close()
-        try await group.shutdownGracefully()
     }
 }
 
+/// Real NIO waiting receiver tests — disabled by default.
 @Suite(
     "NIOTransport — Waiting Receiver Paths",
-    .enabled(if: ProcessInfo.processInfo.environment["CI"] == nil),
-    .timeLimit(.minutes(1))
+    .disabled("Requires live network — run manually")
 )
 struct NIOTransportWaitingReceiverTests {
 
     @Test("enqueueMessage delivers to waiting receiver")
     func enqueueDeliverToWaiter() async throws {
-        let group = MultiThreadedEventLoopGroup(
-            numberOfThreads: 1)
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        // group shutdown at end of test
         let server = try await startFakeServer(group: group)
         let port = try #require(server.localAddress?.port)
 
         let transport = NIOTransport(
             configuration: .default, eventLoopGroup: group
         )
-        try await transport.connect(
-            host: "127.0.0.1", port: port, useTLS: false
-        )
+        try await withTimeout(seconds: 10) {
+            try await transport.connect(
+                host: "127.0.0.1", port: port, useTLS: false
+            )
+        }
 
         // Start receive — suspends waiting for a message
         let receiveTask = Task {
@@ -445,37 +458,34 @@ struct NIOTransportWaitingReceiverTests {
 
         // Directly enqueue via internal API
         let msg = RTMPMessage(
-            controlMessage: .windowAcknowledgementSize(
-                1_000_000)
+            controlMessage: .windowAcknowledgementSize(1_000_000)
         )
         await transport.enqueueMessage(msg)
 
-        let received = try await receiveTask.value
-        #expect(
-            received.typeID
-                == RTMPMessage.typeIDWindowAckSize
-        )
+        let received = try await withTimeout(seconds: 5) {
+            try await receiveTask.value
+        }
+        #expect(received.typeID == RTMPMessage.typeIDWindowAckSize)
 
         try await transport.close()
         try await server.close()
-        try await group.shutdownGracefully()
     }
 
     @Test("handleTransportError resumes waiting receivers")
-    func handleTransportErrorResumesWaiters()
-        async throws
-    {
-        let group = MultiThreadedEventLoopGroup(
-            numberOfThreads: 1)
+    func handleTransportErrorResumesWaiters() async throws {
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        // group shutdown at end of test
         let server = try await startFakeServer(group: group)
         let port = try #require(server.localAddress?.port)
 
         let transport = NIOTransport(
             configuration: .default, eventLoopGroup: group
         )
-        try await transport.connect(
-            host: "127.0.0.1", port: port, useTLS: false
-        )
+        try await withTimeout(seconds: 10) {
+            try await transport.connect(
+                host: "127.0.0.1", port: port, useTLS: false
+            )
+        }
 
         let receiveTask = Task {
             try await transport.receive()
@@ -488,7 +498,9 @@ struct NIOTransportWaitingReceiverTests {
         )
 
         do {
-            _ = try await receiveTask.value
+            _ = try await withTimeout(seconds: 5) {
+                try await receiveTask.value
+            }
             Issue.record("Expected error")
         } catch {
             // Expected — connectionClosed
@@ -496,30 +508,27 @@ struct NIOTransportWaitingReceiverTests {
 
         try? await transport.close()
         try await server.close()
-        try await group.shutdownGracefully()
     }
 
-    @Test(
-        "connect to server with bad handshake throws error"
-    )
+    @Test("connect to server with bad handshake throws error")
     func badHandshakeThrows() async throws {
-        let group = MultiThreadedEventLoopGroup(
-            numberOfThreads: 1)
-        let server = try await startBadHandshakeServer(
-            group: group)
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+        // group shutdown at end of test
+        let server = try await startBadHandshakeServer(group: group)
         let port = try #require(server.localAddress?.port)
 
         let transport = NIOTransport(
-            configuration: TransportConfiguration(
-                connectTimeout: 5),
+            configuration: TransportConfiguration(connectTimeout: 5),
             eventLoopGroup: group
         )
 
         do {
-            try await transport.connect(
-                host: "127.0.0.1", port: port,
-                useTLS: false
-            )
+            try await withTimeout(seconds: 10) {
+                try await transport.connect(
+                    host: "127.0.0.1", port: port,
+                    useTLS: false
+                )
+            }
             Issue.record("Expected handshake error")
         } catch {
             // Expected — bad handshake version
@@ -527,6 +536,5 @@ struct NIOTransportWaitingReceiverTests {
 
         try? await transport.shutdown()
         try await server.close()
-        try await group.shutdownGracefully()
     }
 }

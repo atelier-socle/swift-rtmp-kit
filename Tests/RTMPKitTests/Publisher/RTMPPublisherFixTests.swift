@@ -157,7 +157,7 @@ struct RTMPPublisherPublishRejectionTests {
     @Test("BadName error onStatus rejects publish")
     func badNameRejects() async {
         let mock = MockTransport()
-        mock.scriptedMessages = [
+        await mock.setScriptedMessages([
             RTMPMessage(
                 command: .result(
                     transactionID: 1,
@@ -179,7 +179,7 @@ struct RTMPPublisherPublishRejectionTests {
                         ("level", .string("error")),
                         ("description", .string("Bad stream name"))
                     ])))
-        ]
+        ])
         let publisher = RTMPPublisher(transport: mock)
         do {
             try await publisher.publish(
@@ -201,7 +201,7 @@ struct RTMPPublisherPublishRejectionTests {
     @Test("error level onStatus for unknown code rejects publish")
     func unknownErrorLevelRejects() async {
         let mock = MockTransport()
-        mock.scriptedMessages = [
+        await mock.setScriptedMessages([
             RTMPMessage(
                 command: .result(
                     transactionID: 1,
@@ -223,7 +223,7 @@ struct RTMPPublisherPublishRejectionTests {
                         ("level", .string("error")),
                         ("description", .string("Custom error"))
                     ])))
-        ]
+        ])
         let publisher = RTMPPublisher(transport: mock)
         do {
             try await publisher.publish(
@@ -245,7 +245,7 @@ struct RTMPPublisherPublishRejectionTests {
     @Test("connect _result captures server info")
     func connectCapturesServerInfo() async throws {
         let mock = MockTransport()
-        mock.scriptedMessages = [
+        await mock.setScriptedMessages([
             RTMPMessage(
                 command: .result(
                     transactionID: 1,
@@ -270,7 +270,7 @@ struct RTMPPublisherPublishRejectionTests {
                         ("code", .string("NetStream.Publish.Start")),
                         ("description", .string("Publishing"))
                     ])))
-        ]
+        ])
         let publisher = RTMPPublisher(transport: mock)
         try await publisher.publish(
             url: "rtmp://localhost/app",
@@ -286,7 +286,7 @@ struct RTMPPublisherPublishRejectionTests {
     @Test("connect _error throws connectRejected")
     func connectErrorThrowsRejected() async {
         let mock = MockTransport()
-        mock.scriptedMessages = [
+        await mock.setScriptedMessages([
             RTMPMessage(
                 command: .error(
                     transactionID: 1,
@@ -300,7 +300,7 @@ struct RTMPPublisherPublishRejectionTests {
                         ("description", .string("auth failed"))
                     ])
                 ))
-        ]
+        ])
         let publisher = RTMPPublisher(transport: mock)
         do {
             try await publisher.publish(
@@ -323,7 +323,7 @@ struct RTMPPublisherPublishRejectionTests {
     @Test("connect with Enhanced RTMP fourCcList captures codecs")
     func connectWithEnhancedRTMP() async throws {
         let mock = MockTransport()
-        mock.scriptedMessages = [
+        await mock.setScriptedMessages([
             RTMPMessage(
                 command: .result(
                     transactionID: 1,
@@ -356,7 +356,7 @@ struct RTMPPublisherPublishRejectionTests {
                         ("code", .string("NetStream.Publish.Start")),
                         ("description", .string("Publishing"))
                     ])))
-        ]
+        ])
         let publisher = RTMPPublisher(transport: mock)
         try await publisher.publish(
             url: "rtmp://localhost/app",

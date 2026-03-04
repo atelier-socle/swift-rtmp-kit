@@ -6,10 +6,8 @@
 /// Mock transport for unit testing without real network connections.
 ///
 /// Allows tests to script server responses and verify client sends.
-///
-/// `@unchecked Sendable`: test mock only — not used in production.
-/// Simplifies test scripting by allowing direct property mutation.
-public final class MockTransport: RTMPTransportProtocol, @unchecked Sendable {
+/// Uses actor isolation for thread safety — all access requires `await`.
+public actor MockTransport: RTMPTransportProtocol {
 
     /// Bytes sent by the client (for verification).
     public private(set) var sentBytes: [[UInt8]] = []
@@ -90,6 +88,17 @@ public final class MockTransport: RTMPTransportProtocol, @unchecked Sendable {
     /// Simulates closing the connection.
     public func close() async throws {
         didClose = true
+    }
+
+    /// Sets the scripted messages for receive().
+    public func setScriptedMessages(_ messages: [RTMPMessage]) {
+        scriptedMessages = messages
+        messageIndex = 0
+    }
+
+    /// Sets the error to throw on the next operation.
+    public func setNextError(_ error: Error?) {
+        nextError = error
     }
 
     /// Resets the mock state for reuse.

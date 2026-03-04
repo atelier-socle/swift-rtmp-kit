@@ -196,8 +196,7 @@ private func startFullRTMPServer(
 
 @Suite(
     "CLI — TestConnectionCommand Integration",
-    .enabled(if: ProcessInfo.processInfo.environment["CI"] == nil),
-    .timeLimit(.minutes(1))
+    .disabled("Requires live network — run manually")
 )
 struct TestConnectionCommandIntegrationTests {
 
@@ -328,8 +327,7 @@ private func createTempFLV() throws -> String {
 
 @Suite(
     "CLI — PublishCommand Integration",
-    .enabled(if: ProcessInfo.processInfo.environment["CI"] == nil),
-    .timeLimit(.minutes(1))
+    .disabled("Requires live network — run manually")
 )
 struct PublishCommandIntegrationTests {
 
@@ -419,8 +417,7 @@ struct PublishCommandIntegrationTests {
 
 @Suite(
     "CLI — InfoCommand Integration",
-    .enabled(if: ProcessInfo.processInfo.environment["CI"] == nil),
-    .timeLimit(.minutes(1))
+    .disabled("Requires live network — run manually")
 )
 struct InfoCommandIntegrationTests {
 

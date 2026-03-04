@@ -23,7 +23,7 @@ struct TransportShowcaseTests {
                 2_500_000
             )
         )
-        mock.scriptedMessages = [ackMsg]
+        await mock.setScriptedMessages([ackMsg])
 
         // 3. Create RTMPPublisher with mock transport
         let publisher = RTMPPublisher(transport: mock)
@@ -37,10 +37,14 @@ struct TransportShowcaseTests {
             host: "127.0.0.1", port: 1935,
             useTLS: false
         )
-        #expect(mock.didConnect)
-        #expect(mock.connectHost == "127.0.0.1")
-        #expect(mock.connectPort == 1935)
-        #expect(mock.connectUseTLS == false)
+        let connected = await mock.didConnect
+        let host = await mock.connectHost
+        let port = await mock.connectPort
+        let tls = await mock.connectUseTLS
+        #expect(connected)
+        #expect(host == "127.0.0.1")
+        #expect(port == 1935)
+        #expect(tls == false)
 
         // Receive the scripted message
         let received = try await mock.receive()
@@ -55,7 +59,7 @@ struct TransportShowcaseTests {
         let mock = MockTransport()
 
         // Script an error on connect
-        mock.nextError = TransportError.connectionTimeout
+        await mock.setNextError(TransportError.connectionTimeout)
 
         do {
             try await mock.connect(
@@ -71,7 +75,8 @@ struct TransportShowcaseTests {
         }
 
         // Mock should not be connected
-        #expect(!mock.isConnected)
+        let connected = await mock.isConnected
+        #expect(!connected)
     }
 
     @Test(
@@ -96,9 +101,10 @@ struct TransportShowcaseTests {
         try await mock.send(audioBytes)
 
         // Verify outgoing data was captured
-        #expect(mock.sentBytes.count == 2)
-        #expect(mock.sentBytes[0] == videoBytes)
-        #expect(mock.sentBytes[1] == audioBytes)
+        let sent = await mock.sentBytes
+        #expect(sent.count == 2)
+        #expect(sent[0] == videoBytes)
+        #expect(sent[1] == audioBytes)
     }
 
     @Test(
@@ -127,16 +133,24 @@ struct TransportShowcaseTests {
         try await mock.send([0x01])
         try await mock.close()
 
-        mock.reset()
+        await mock.reset()
 
-        #expect(!mock.didConnect)
-        #expect(!mock.didClose)
-        #expect(mock.sentBytes.isEmpty)
-        #expect(mock.scriptedMessages.isEmpty)
-        #expect(mock.connectHost == nil)
-        #expect(mock.connectPort == nil)
-        #expect(mock.connectUseTLS == nil)
-        #expect(mock.nextError == nil)
+        let connected = await mock.didConnect
+        let closed = await mock.didClose
+        let sent = await mock.sentBytes
+        let scripted = await mock.scriptedMessages
+        let host = await mock.connectHost
+        let port = await mock.connectPort
+        let tls = await mock.connectUseTLS
+        let err = await mock.nextError
+        #expect(!connected)
+        #expect(!closed)
+        #expect(sent.isEmpty)
+        #expect(scripted.isEmpty)
+        #expect(host == nil)
+        #expect(port == nil)
+        #expect(tls == nil)
+        #expect(err == nil)
     }
 
     // MARK: - TransportConfiguration Presets
@@ -221,7 +235,8 @@ struct TransportShowcaseTests {
 
         // 4. The mock allows full lifecycle testing
         //    without any real network connection
-        #expect(!mock.didConnect)
+        let connected = await mock.didConnect
+        #expect(!connected)
 
         // Clean up
         await publisher.disconnect()

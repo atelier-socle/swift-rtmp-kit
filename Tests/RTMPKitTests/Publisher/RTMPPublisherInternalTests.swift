@@ -36,9 +36,9 @@ private func makePublishScript(streamID: Double = 1) -> [RTMPMessage] {
 /// Create a publisher with a scripted mock transport.
 private func makeScriptedPublisher(
     messages: [RTMPMessage]? = nil
-) -> (RTMPPublisher, MockTransport) {
+) async -> (RTMPPublisher, MockTransport) {
     let mock = MockTransport()
-    mock.scriptedMessages = messages ?? makePublishScript()
+    await mock.setScriptedMessages(messages ?? makePublishScript())
     let publisher = RTMPPublisher(transport: mock)
     return (publisher, mock)
 }
@@ -50,7 +50,7 @@ struct RTMPPublisherProcessProtocolTests {
 
     @Test("processProtocolMessage handles window ack size")
     func handlesWindowAckSize() async throws {
-        let (publisher, _) = makeScriptedPublisher()
+        let (publisher, _) = await makeScriptedPublisher()
         let msg = RTMPMessage(
             controlMessage: .windowAcknowledgementSize(5_000_000))
         await publisher.processProtocolMessage(msg)
@@ -60,7 +60,7 @@ struct RTMPPublisherProcessProtocolTests {
 
     @Test("processProtocolMessage handles acknowledgement")
     func handlesAcknowledgement() async throws {
-        let (publisher, _) = makeScriptedPublisher()
+        let (publisher, _) = await makeScriptedPublisher()
         let ackPayload = RTMPControlMessage.acknowledgement(
             sequenceNumber: 12345
         ).encode()
@@ -73,7 +73,7 @@ struct RTMPPublisherProcessProtocolTests {
 
     @Test("processProtocolMessage handles user control ping")
     func handlesUserControlPing() async throws {
-        let (publisher, _) = makeScriptedPublisher()
+        let (publisher, _) = await makeScriptedPublisher()
         let pingPayload = RTMPUserControlEvent.pingRequest(
             timestamp: 1000
         ).encode()
@@ -86,7 +86,7 @@ struct RTMPPublisherProcessProtocolTests {
 
     @Test("processProtocolMessage handles command onStatus")
     func handlesCommandOnStatus() async throws {
-        let (publisher, _) = makeScriptedPublisher()
+        let (publisher, _) = await makeScriptedPublisher()
         let cmd = RTMPCommand.onStatus(
             information: .object([
                 ("code", .string("NetStream.Play.Start")),
@@ -99,7 +99,7 @@ struct RTMPPublisherProcessProtocolTests {
 
     @Test("processProtocolMessage ignores unknown type IDs")
     func ignoresUnknownTypeIDs() async {
-        let (publisher, _) = makeScriptedPublisher()
+        let (publisher, _) = await makeScriptedPublisher()
         let msg = RTMPMessage(
             typeID: 99, streamID: 0, timestamp: 0, payload: [0x00])
         await publisher.processProtocolMessage(msg)
@@ -236,7 +236,7 @@ struct RTMPPublisherMatchResultTests {
     @Test("_error for non-connect command throws unexpectedResponse")
     func errorForNonConnectThrowsUnexpected() async {
         let mock = MockTransport()
-        mock.scriptedMessages = [
+        await mock.setScriptedMessages([
             // Connect succeeds
             RTMPMessage(
                 command: .result(
@@ -256,7 +256,7 @@ struct RTMPPublisherMatchResultTests {
                         ("description", .string("Stream error"))
                     ])
                 ))
-        ]
+        ])
         let publisher = RTMPPublisher(transport: mock)
         do {
             try await publisher.publish(
@@ -280,14 +280,14 @@ struct RTMPPublisherMatchResultTests {
 
 // MARK: - trackBytesReceived Tests
 
-@Suite("RTMPPublisher+Internal — trackBytesReceived", .timeLimit(.minutes(1)))
+@Suite("RTMPPublisher+Internal — trackBytesReceived")
 struct RTMPPublisherTrackBytesTests {
 
     @Test("tracking bytes triggers ack when window exceeded")
     func trackBytesTriggersAck() async throws {
         let mock = MockTransport()
         // Set up a publisher in publishing state
-        mock.scriptedMessages = makePublishScript()
+        await mock.setScriptedMessages(makePublishScript())
         let publisher = RTMPPublisher(transport: mock)
         try await publisher.publish(
             url: "rtmp://localhost/app",
@@ -352,13 +352,13 @@ struct RTMPPublisherStatisticsTests {
 
 // MARK: - attemptReconnect Tests
 
-@Suite("RTMPPublisher+Internal — attemptReconnect", .timeLimit(.minutes(1)))
+@Suite("RTMPPublisher+Internal — attemptReconnect")
 struct RTMPPublisherReconnectTests {
 
     @Test("reconnect with disabled policy is no-op")
     func reconnectDisabledPolicy() async {
         let mock = MockTransport()
-        mock.scriptedMessages = makePublishScript()
+        await mock.setScriptedMessages(makePublishScript())
         let publisher = RTMPPublisher(transport: mock)
 
         // Publish with no-reconnect policy
@@ -369,7 +369,7 @@ struct RTMPPublisherReconnectTests {
         try? await publisher.publish(configuration: config)
 
         // Reset for reconnection
-        mock.reset()
+        await mock.reset()
 
         // attemptReconnect should immediately return since policy is disabled
         await publisher.attemptReconnect()
@@ -389,17 +389,14 @@ struct RTMPPublisherReconnectTests {
         let publisher = RTMPPublisher(transport: mock)
 
         // Set the configuration directly and set state
-        var config = RTMPConfiguration(
+        let config = RTMPConfiguration(
             url: "rtmp://localhost/app", streamKey: "test",
             reconnectPolicy: ReconnectPolicy(
                 maxAttempts: 3, initialDelay: 0, maxDelay: 0,
                 multiplier: 0, jitter: 0))
-        config.reconnectPolicy = ReconnectPolicy(
-            maxAttempts: 3, initialDelay: 0, maxDelay: 0,
-            multiplier: 0, jitter: 0)
 
         // Script the mock for a successful reconnection
-        mock.reconnectMessages = makePublishScript()
+        await mock.setReconnectMessages(makePublishScript())
         await publisher.setConfigurationForTest(config)
 
         await publisher.attemptReconnect()
@@ -411,7 +408,7 @@ struct RTMPPublisherReconnectTests {
     @Test("reconnect exhausts max attempts")
     func reconnectExhausts() async {
         let mock = ReconnectMockTransport()
-        mock.alwaysFailConnect = true
+        await mock.setAlwaysFail(true)
         let publisher = RTMPPublisher(transport: mock)
 
         let config = RTMPConfiguration(
@@ -432,17 +429,25 @@ struct RTMPPublisherReconnectTests {
 }
 
 /// Mock transport that supports reconnection scenarios.
-private final class ReconnectMockTransport: RTMPTransportProtocol,
-    @unchecked Sendable
-{
+actor ReconnectMockTransport: RTMPTransportProtocol {
     var reconnectMessages: [RTMPMessage] = []
     var alwaysFailConnect: Bool = false
-    var sentBytes: [[UInt8]] = []
-    var messageIndex = 0
-    var didConnect = false
-    var didClose = false
+    private var sentBytes: [[UInt8]] = []
+    private var messageIndex = 0
+    private var didConnect = false
+    private var didClose = false
 
     var isConnected: Bool { didConnect && !didClose }
+
+    /// Sets the reconnect messages.
+    func setReconnectMessages(_ messages: [RTMPMessage]) {
+        reconnectMessages = messages
+    }
+
+    /// Sets whether connect always fails.
+    func setAlwaysFail(_ fail: Bool) {
+        alwaysFailConnect = fail
+    }
 
     func connect(host: String, port: Int, useTLS: Bool) async throws {
         if alwaysFailConnect {
@@ -482,7 +487,7 @@ extension RTMPPublisher {
 
 // MARK: - startMessageLoop Tests
 
-@Suite("RTMPPublisher+Internal — startMessageLoop", .timeLimit(.minutes(1)))
+@Suite("RTMPPublisher+Internal — startMessageLoop")
 struct RTMPPublisherStartMessageLoopTests {
 
     @Test("startMessageLoop processes incoming messages")
@@ -498,7 +503,7 @@ struct RTMPPublisherStartMessageLoopTests {
             RTMPMessage(
                 typeID: RTMPMessage.typeIDAcknowledgement,
                 streamID: 0, timestamp: 0, payload: ackPayload))
-        mock.scriptedMessages = allMessages
+        await mock.setScriptedMessages(allMessages)
 
         let publisher = RTMPPublisher(transport: mock)
         try await publisher.publish(
@@ -515,13 +520,13 @@ struct RTMPPublisherStartMessageLoopTests {
 
 // MARK: - awaitPublishStatus edge case
 
-@Suite("RTMPPublisher+Internal — awaitPublishStatus", .timeLimit(.minutes(1)))
+@Suite("RTMPPublisher+Internal — awaitPublishStatus")
 struct RTMPPublisherAwaitPublishStatusTests {
 
     @Test("publish with protocol messages before onStatus")
     func protocolMessagesBeforeOnStatus() async throws {
         let mock = MockTransport()
-        mock.scriptedMessages = [
+        await mock.setScriptedMessages([
             // Connect _result
             RTMPMessage(
                 command: .result(
@@ -548,7 +553,7 @@ struct RTMPPublisherAwaitPublishStatusTests {
                         ("code", .string("NetStream.Publish.Start")),
                         ("description", .string("Publishing"))
                     ])))
-        ]
+        ])
         let publisher = RTMPPublisher(transport: mock)
         try await publisher.publish(
             url: "rtmp://localhost/app",

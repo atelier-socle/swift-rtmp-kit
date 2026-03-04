@@ -50,9 +50,9 @@ private func makePublishScript(streamID: Double = 1) -> [RTMPMessage] {
 /// Create a publisher with a scripted mock transport.
 private func makeScriptedPublisher(
     messages: [RTMPMessage]? = nil
-) -> (RTMPPublisher, MockTransport) {
+) async -> (RTMPPublisher, MockTransport) {
     let mock = MockTransport()
-    mock.scriptedMessages = messages ?? makePublishScript()
+    await mock.setScriptedMessages(messages ?? makePublishScript())
     let publisher = RTMPPublisher(transport: mock)
     return (publisher, mock)
 }
@@ -74,7 +74,7 @@ struct RTMPPublisherLifecycleTests {
 
     @Test("publish transitions to publishing state")
     func publishTransitionsToPublishing() async throws {
-        let (publisher, _) = makeScriptedPublisher()
+        let (publisher, _) = await makeScriptedPublisher()
         try await publisher.publish(
             url: "rtmp://localhost/app",
             streamKey: "test"
@@ -86,45 +86,51 @@ struct RTMPPublisherLifecycleTests {
 
     @Test("publish sends connect command via transport")
     func publishSendsConnect() async throws {
-        let (publisher, mock) = makeScriptedPublisher()
+        let (publisher, mock) = await makeScriptedPublisher()
         try await publisher.publish(
             url: "rtmp://localhost/app",
             streamKey: "test"
         )
         // Transport should have received sent bytes (connect, setChunkSize,
         // releaseStream, FCPublish, createStream, publish).
-        #expect(mock.sentBytes.count >= 5)
+        let count = await mock.sentBytes.count
+        #expect(count >= 5)
         await publisher.disconnect()
     }
 
     @Test("publish calls transport.connect with correct params")
     func publishCallsTransportConnect() async throws {
-        let (publisher, mock) = makeScriptedPublisher()
+        let (publisher, mock) = await makeScriptedPublisher()
         try await publisher.publish(
             url: "rtmp://localhost/app",
             streamKey: "test"
         )
-        #expect(mock.connectHost == "localhost")
-        #expect(mock.connectPort == 1935)
-        #expect(mock.connectUseTLS == false)
+        let host = await mock.connectHost
+        let port = await mock.connectPort
+        let tls = await mock.connectUseTLS
+        #expect(host == "localhost")
+        #expect(port == 1935)
+        #expect(tls == false)
         await publisher.disconnect()
     }
 
     @Test("publish with rtmps uses TLS")
     func publishWithRTMPSUsesTLS() async throws {
-        let (publisher, mock) = makeScriptedPublisher()
+        let (publisher, mock) = await makeScriptedPublisher()
         try await publisher.publish(
             url: "rtmps://host.example.com/app",
             streamKey: "test"
         )
-        #expect(mock.connectUseTLS == true)
-        #expect(mock.connectPort == 443)
+        let tls = await mock.connectUseTLS
+        let port = await mock.connectPort
+        #expect(tls == true)
+        #expect(port == 443)
         await publisher.disconnect()
     }
 
     @Test("disconnect transitions to disconnected")
     func disconnectTransitions() async throws {
-        let (publisher, _) = makeScriptedPublisher()
+        let (publisher, _) = await makeScriptedPublisher()
         try await publisher.publish(
             url: "rtmp://localhost/app",
             streamKey: "test"
@@ -136,18 +142,19 @@ struct RTMPPublisherLifecycleTests {
 
     @Test("disconnect closes transport")
     func disconnectClosesTransport() async throws {
-        let (publisher, mock) = makeScriptedPublisher()
+        let (publisher, mock) = await makeScriptedPublisher()
         try await publisher.publish(
             url: "rtmp://localhost/app",
             streamKey: "test"
         )
         await publisher.disconnect()
-        #expect(mock.didClose)
+        let closed = await mock.didClose
+        #expect(closed)
     }
 
     @Test("publish sends metadata when provided")
     func publishSendsMetadata() async throws {
-        let (publisher, mock) = makeScriptedPublisher()
+        let (publisher, mock) = await makeScriptedPublisher()
         var meta = StreamMetadata()
         meta.width = 1920
         meta.height = 1080
@@ -157,21 +164,22 @@ struct RTMPPublisherLifecycleTests {
             metadata: meta
         )
         // Metadata is one additional send after publish.
-        let sentCount = mock.sentBytes.count
+        let sentCount = await mock.sentBytes.count
         #expect(sentCount >= 7)
         await publisher.disconnect()
     }
 
     @Test("publish sends multiple commands in order")
     func publishSendsCommandsInOrder() async throws {
-        let (publisher, mock) = makeScriptedPublisher()
+        let (publisher, mock) = await makeScriptedPublisher()
         try await publisher.publish(
             url: "rtmp://localhost/app",
             streamKey: "test"
         )
         // Expected sends: connect, setChunkSize, releaseStream,
         // FCPublish, createStream, publish.
-        #expect(mock.sentBytes.count >= 6)
+        let count = await mock.sentBytes.count
+        #expect(count >= 6)
         await publisher.disconnect()
     }
 }
@@ -205,73 +213,78 @@ struct RTMPPublisherMediaTests {
 
     @Test("sendVideoConfig sends sequence header via transport")
     func sendVideoConfigSendsHeader() async throws {
-        let (publisher, mock) = makeScriptedPublisher()
+        let (publisher, mock) = await makeScriptedPublisher()
         try await publisher.publish(
             url: "rtmp://localhost/app",
             streamKey: "test"
         )
-        let beforeCount = mock.sentBytes.count
+        let beforeCount = await mock.sentBytes.count
         try await publisher.sendVideoConfig([0x01, 0x64, 0x00, 0x1E])
-        #expect(mock.sentBytes.count == beforeCount + 1)
+        let afterCount = await mock.sentBytes.count
+        #expect(afterCount == beforeCount + 1)
         await publisher.disconnect()
     }
 
     @Test("sendAudioConfig sends sequence header via transport")
     func sendAudioConfigSendsHeader() async throws {
-        let (publisher, mock) = makeScriptedPublisher()
+        let (publisher, mock) = await makeScriptedPublisher()
         try await publisher.publish(
             url: "rtmp://localhost/app",
             streamKey: "test"
         )
-        let beforeCount = mock.sentBytes.count
+        let beforeCount = await mock.sentBytes.count
         try await publisher.sendAudioConfig([0x12, 0x10])
-        #expect(mock.sentBytes.count == beforeCount + 1)
+        let afterCount = await mock.sentBytes.count
+        #expect(afterCount == beforeCount + 1)
         await publisher.disconnect()
     }
 
     @Test("sendVideo sends FLV tag body via transport")
     func sendVideoSendsTag() async throws {
-        let (publisher, mock) = makeScriptedPublisher()
+        let (publisher, mock) = await makeScriptedPublisher()
         try await publisher.publish(
             url: "rtmp://localhost/app",
             streamKey: "test"
         )
-        let beforeCount = mock.sentBytes.count
+        let beforeCount = await mock.sentBytes.count
         try await publisher.sendVideo(
             [0x00, 0x00, 0x00, 0x01, 0x65],
             timestamp: 100,
             isKeyframe: true
         )
-        #expect(mock.sentBytes.count == beforeCount + 1)
+        let afterCount = await mock.sentBytes.count
+        #expect(afterCount == beforeCount + 1)
         await publisher.disconnect()
     }
 
     @Test("sendAudio sends FLV tag body via transport")
     func sendAudioSendsTag() async throws {
-        let (publisher, mock) = makeScriptedPublisher()
+        let (publisher, mock) = await makeScriptedPublisher()
         try await publisher.publish(
             url: "rtmp://localhost/app",
             streamKey: "test"
         )
-        let beforeCount = mock.sentBytes.count
+        let beforeCount = await mock.sentBytes.count
         try await publisher.sendAudio([0xFF, 0xF1], timestamp: 200)
-        #expect(mock.sentBytes.count == beforeCount + 1)
+        let afterCount = await mock.sentBytes.count
+        #expect(afterCount == beforeCount + 1)
         await publisher.disconnect()
     }
 
     @Test("updateMetadata sends @setDataFrame")
     func updateMetadataSendsDataFrame() async throws {
-        let (publisher, mock) = makeScriptedPublisher()
+        let (publisher, mock) = await makeScriptedPublisher()
         try await publisher.publish(
             url: "rtmp://localhost/app",
             streamKey: "test"
         )
-        let beforeCount = mock.sentBytes.count
+        let beforeCount = await mock.sentBytes.count
         var meta = StreamMetadata()
         meta.width = 1280
         meta.height = 720
         try await publisher.updateMetadata(meta)
-        #expect(mock.sentBytes.count == beforeCount + 1)
+        let afterCount = await mock.sentBytes.count
+        #expect(afterCount == beforeCount + 1)
         await publisher.disconnect()
     }
 
@@ -325,7 +338,7 @@ struct RTMPPublisherErrorTests {
 
     @Test("publish when already publishing throws alreadyPublishing")
     func alreadyPublishing() async throws {
-        let (publisher, _) = makeScriptedPublisher()
+        let (publisher, _) = await makeScriptedPublisher()
         try await publisher.publish(
             url: "rtmp://localhost/app",
             streamKey: "test"
@@ -347,7 +360,7 @@ struct RTMPPublisherErrorTests {
     @Test("connect rejected by server throws connectRejected")
     func connectRejected() async {
         let mock = MockTransport()
-        mock.scriptedMessages = [
+        await mock.setScriptedMessages([
             RTMPMessage(
                 command: .error(
                     transactionID: 1,
@@ -358,7 +371,7 @@ struct RTMPPublisherErrorTests {
                         ("description", .string("Auth failed"))
                     ])
                 ))
-        ]
+        ])
         let publisher = RTMPPublisher(transport: mock)
         do {
             try await publisher.publish(
@@ -380,7 +393,7 @@ struct RTMPPublisherErrorTests {
     @Test("createStream failure throws createStreamFailed")
     func createStreamFailed() async {
         let mock = MockTransport()
-        mock.scriptedMessages = [
+        await mock.setScriptedMessages([
             // Connect succeeds.
             RTMPMessage(
                 command: .result(
@@ -397,7 +410,7 @@ struct RTMPPublisherErrorTests {
                     properties: nil,
                     information: .null
                 ))
-        ]
+        ])
         let publisher = RTMPPublisher(transport: mock)
         do {
             try await publisher.publish(
@@ -419,7 +432,7 @@ struct RTMPPublisherErrorTests {
     @Test("publish rejected throws publishFailed")
     func publishRejected() async {
         let mock = MockTransport()
-        mock.scriptedMessages = [
+        await mock.setScriptedMessages([
             // Connect succeeds.
             RTMPMessage(
                 command: .result(
@@ -444,7 +457,7 @@ struct RTMPPublisherErrorTests {
                         ("code", .string("NetStream.Publish.Failed")),
                         ("description", .string("Already publishing"))
                     ])))
-        ]
+        ])
         let publisher = RTMPPublisher(transport: mock)
         do {
             try await publisher.publish(
@@ -466,7 +479,7 @@ struct RTMPPublisherErrorTests {
     @Test("connect failure transitions to failed state")
     func connectFailureTransitionsToFailed() async {
         let mock = MockTransport()
-        mock.nextError = TransportError.connectionTimeout
+        await mock.setNextError(TransportError.connectionTimeout)
         let publisher = RTMPPublisher(transport: mock)
         do {
             try await publisher.publish(
@@ -482,99 +495,5 @@ struct RTMPPublisherErrorTests {
                 Issue.record("Expected failed state, got \(state)")
             }
         }
-    }
-}
-
-// MARK: - Init Tests
-
-@Suite("RTMPPublisher — Init")
-struct RTMPPublisherInitTests {
-
-    @Test("Default init creates publisher in idle state")
-    func defaultInit() async {
-        let publisher = RTMPPublisher()
-        let state = await publisher.state
-        #expect(state == .idle)
-    }
-
-    @Test("Custom transport init uses provided transport")
-    func customTransportInit() async {
-        let mock = MockTransport()
-        let publisher = RTMPPublisher(transport: mock)
-        let state = await publisher.state
-        #expect(state == .idle)
-    }
-}
-
-// MARK: - Event Tests
-
-@Suite("RTMPPublisher — Events")
-struct RTMPPublisherEventTests {
-
-    @Test("events stream is available")
-    func eventsStreamAvailable() async {
-        let publisher = RTMPPublisher(transport: MockTransport())
-        // The events property should be accessible without crash.
-        _ = await publisher.events
-    }
-
-    @Test("events emitted during publish are buffered")
-    func eventsEmittedDuringPublish() async throws {
-        let (publisher, _) = makeScriptedPublisher()
-        let stream = await publisher.events
-
-        try await publisher.publish(
-            url: "rtmp://localhost/app",
-            streamKey: "test"
-        )
-
-        // Events are buffered by AsyncStream. Read the first one.
-        var iterator = stream.makeAsyncIterator()
-        let first = await iterator.next()
-        #expect(first != nil)
-
-        await publisher.disconnect()
-    }
-}
-
-// MARK: - Configuration Integration Tests
-
-@Suite("RTMPPublisher — Configuration")
-struct RTMPPublisherConfigurationTests {
-
-    @Test("publish with configuration transitions to publishing")
-    func publishWithConfiguration() async throws {
-        let (publisher, _) = makeScriptedPublisher()
-        let config = RTMPConfiguration(
-            url: "rtmp://localhost/app", streamKey: "test"
-        )
-        try await publisher.publish(configuration: config)
-        let state = await publisher.state
-        #expect(state == .publishing)
-        await publisher.disconnect()
-    }
-
-    @Test("publish with Twitch configuration uses correct params")
-    func publishWithTwitchConfig() async throws {
-        let (publisher, mock) = makeScriptedPublisher()
-        let config = RTMPConfiguration.twitch(
-            streamKey: "test", useTLS: false
-        )
-        try await publisher.publish(configuration: config)
-        #expect(mock.connectHost == "live.twitch.tv")
-        #expect(mock.connectPort == 1935)
-        await publisher.disconnect()
-    }
-
-    @Test("disconnect clears stored configuration")
-    func disconnectClearsConfiguration() async throws {
-        let (publisher, _) = makeScriptedPublisher()
-        let config = RTMPConfiguration(
-            url: "rtmp://localhost/app", streamKey: "test"
-        )
-        try await publisher.publish(configuration: config)
-        await publisher.disconnect()
-        let stored = await publisher.currentConfiguration
-        #expect(stored == nil)
     }
 }

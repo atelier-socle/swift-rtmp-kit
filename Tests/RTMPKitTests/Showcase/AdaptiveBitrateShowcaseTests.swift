@@ -366,13 +366,13 @@ struct ABRFrameDroppingShowcaseTests {
 
 // MARK: - Suite 4: RTMPPublisher ABR Integration
 
-@Suite("Adaptive Bitrate Showcase — Publisher Integration", .timeLimit(.minutes(1)))
+@Suite("Adaptive Bitrate Showcase — Publisher Integration")
 struct ABRPublisherShowcaseTests {
 
     @Test("Publisher with disabled ABR has no monitor")
     func disabledABRNoMonitor() async throws {
         let mock = MockTransport()
-        mock.scriptedMessages = makePublishScript()
+        await mock.setScriptedMessages(makePublishScript())
         let publisher = RTMPPublisher(transport: mock)
 
         try await publisher.publish(
@@ -398,7 +398,7 @@ struct ABRPublisherShowcaseTests {
     @Test("Publisher with responsive ABR starts monitor on connect")
     func responsiveABRStartsMonitor() async throws {
         let mock = MockTransport()
-        mock.scriptedMessages = makePublishScript()
+        await mock.setScriptedMessages(makePublishScript())
         let publisher = RTMPPublisher(transport: mock)
 
         var config = RTMPConfiguration(url: "rtmp://localhost/app", streamKey: "test")
@@ -415,7 +415,7 @@ struct ABRPublisherShowcaseTests {
     @Test("bitrateRecommendation event forwarded on stream")
     func bitrateRecommendationForwarded() async throws {
         let mock = MockTransport()
-        mock.scriptedMessages = makePublishScript()
+        await mock.setScriptedMessages(makePublishScript())
         let publisher = RTMPPublisher(transport: mock)
 
         var config = RTMPConfiguration(url: "rtmp://localhost/app", streamKey: "test")
@@ -448,7 +448,7 @@ struct ABRPublisherShowcaseTests {
     @Test("forceVideoBitrate updates currentVideoBitrate")
     func forceUpdatesBitrate() async throws {
         let mock = MockTransport()
-        mock.scriptedMessages = makePublishScript()
+        await mock.setScriptedMessages(makePublishScript())
         let publisher = RTMPPublisher(transport: mock)
 
         var config = RTMPConfiguration(url: "rtmp://localhost/app", streamKey: "test")
@@ -465,7 +465,7 @@ struct ABRPublisherShowcaseTests {
     @Test("forceVideoBitrate is no-op when ABR disabled")
     func forceNoOpWhenDisabled() async throws {
         let mock = MockTransport()
-        mock.scriptedMessages = makePublishScript()
+        await mock.setScriptedMessages(makePublishScript())
         let publisher = RTMPPublisher(transport: mock)
 
         try await publisher.publish(
@@ -485,7 +485,7 @@ struct ABRPublisherShowcaseTests {
     @Test("Frame dropping: keyframes always pass through")
     func keyframesAlwaysPassThrough() async throws {
         let mock = MockTransport()
-        mock.scriptedMessages = makePublishScript()
+        await mock.setScriptedMessages(makePublishScript())
         let publisher = RTMPPublisher(transport: mock)
 
         var config = RTMPConfiguration(url: "rtmp://localhost/app", streamKey: "test")
@@ -496,9 +496,9 @@ struct ABRPublisherShowcaseTests {
         let abrMon = await publisher.abrMonitor
         await abrMon?.recordBytesSent(1, pendingBytes: 50_000_000)
 
-        let sentBefore = mock.sentBytes.count
+        let sentBefore = await mock.sentBytes.count
         try await publisher.sendVideo([0x01], timestamp: 0, isKeyframe: true)
-        let sentAfter = mock.sentBytes.count
+        let sentAfter = await mock.sentBytes.count
 
         // Keyframe was sent (sentBytes grew)
         #expect(sentAfter > sentBefore)
@@ -509,7 +509,7 @@ struct ABRPublisherShowcaseTests {
     @Test("Frame dropping: non-keyframes dropped under congestion")
     func nonKeyframesDroppedUnderCongestion() async throws {
         let mock = MockTransport()
-        mock.scriptedMessages = makePublishScript()
+        await mock.setScriptedMessages(makePublishScript())
         let publisher = RTMPPublisher(transport: mock)
 
         var config = RTMPConfiguration(url: "rtmp://localhost/app", streamKey: "test")
@@ -520,9 +520,9 @@ struct ABRPublisherShowcaseTests {
         let abrMon = await publisher.abrMonitor
         await abrMon?.recordBytesSent(1, pendingBytes: 50_000_000)
 
-        let sentBefore = mock.sentBytes.count
+        let sentBefore = await mock.sentBytes.count
         try await publisher.sendVideo([0x01], timestamp: 0, isKeyframe: false)
-        let sentAfter = mock.sentBytes.count
+        let sentAfter = await mock.sentBytes.count
 
         // Non-keyframe was dropped (sentBytes unchanged)
         #expect(sentAfter == sentBefore)
@@ -536,7 +536,7 @@ struct ABRPublisherShowcaseTests {
     @Test("ABR monitor stops cleanly on disconnect")
     func abrStopsOnDisconnect() async throws {
         let mock = MockTransport()
-        mock.scriptedMessages = makePublishScript()
+        await mock.setScriptedMessages(makePublishScript())
         let publisher = RTMPPublisher(transport: mock)
 
         var config = RTMPConfiguration(url: "rtmp://localhost/app", streamKey: "test")
@@ -552,7 +552,7 @@ struct ABRPublisherShowcaseTests {
     @Test("ABR resets on reconnect")
     func abrResetsOnReconnect() async throws {
         let mock = MockTransport()
-        mock.scriptedMessages = makePublishScript()
+        await mock.setScriptedMessages(makePublishScript())
         let publisher = RTMPPublisher(transport: mock)
 
         var config = RTMPConfiguration(url: "rtmp://localhost/app", streamKey: "test")
