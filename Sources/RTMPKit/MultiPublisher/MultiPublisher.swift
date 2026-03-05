@@ -49,14 +49,30 @@ public actor MultiPublisher {
     /// Aggregated statistics snapshot. Updated after every media send call.
     public private(set) var statistics = MultiPublisherStatistics()
 
-    /// Stream of (destinationID, RTMPEvent) pairs — events from all destinations.
-    public let events: AsyncStream<(String, RTMPEvent)>
+    /// Failure policy. Can be updated at any time before or during streaming.
+    ///
+    /// Default: ``MultiPublisherFailurePolicy/continueOnFailure``.
+    public private(set) var failurePolicy: MultiPublisherFailurePolicy = .continueOnFailure
+
+    /// Update the failure policy.
+    ///
+    /// - Parameter policy: The new failure policy to use.
+    public func setFailurePolicy(_ policy: MultiPublisherFailurePolicy) {
+        failurePolicy = policy
+    }
+
+    /// Stream of structured events from all destinations.
+    ///
+    /// Emits ``MultiPublisherEvent`` values for state changes,
+    /// per-destination RTMP events, statistics updates, and failure
+    /// threshold notifications.
+    public let events: AsyncStream<MultiPublisherEvent>
 
     // MARK: - Private State
 
     private var handles: [String: DestinationHandle] = [:]
     private let transportFactory: TransportFactory
-    private let eventContinuation: AsyncStream<(String, RTMPEvent)>.Continuation
+    private let eventContinuation: AsyncStream<MultiPublisherEvent>.Continuation
 
     // MARK: - Internal Types
 
@@ -70,7 +86,7 @@ public actor MultiPublisher {
 
     /// Creates a multi-publisher with the default NIO transport.
     public init() {
-        let (stream, continuation) = AsyncStream<(String, RTMPEvent)>.makeStream()
+        let (stream, continuation) = AsyncStream<MultiPublisherEvent>.makeStream()
         self.events = stream
         self.eventContinuation = continuation
         self.transportFactory = { _ in NIOTransport() }
@@ -82,7 +98,7 @@ public actor MultiPublisher {
     ///
     /// - Parameter transportFactory: Closure that creates a transport for each destination.
     public init(transportFactory: @escaping TransportFactory) {
-        let (stream, continuation) = AsyncStream<(String, RTMPEvent)>.makeStream()
+        let (stream, continuation) = AsyncStream<MultiPublisherEvent>.makeStream()
         self.events = stream
         self.eventContinuation = continuation
         self.transportFactory = transportFactory
@@ -161,16 +177,17 @@ public actor MultiPublisher {
             throw MultiPublisherError.destinationNotFound(id)
         }
 
-        destinationStates[id] = .connecting
+        setDestinationState(id: id, state: .connecting)
 
         let publisher = handle.publisher
         let config = handle.destination.configuration
 
         do {
             try await publisher.publish(configuration: config)
-            destinationStates[id] = .streaming
+            setDestinationState(id: id, state: .streaming)
         } catch {
-            destinationStates[id] = .failed(error)
+            setDestinationState(id: id, state: .failed(error))
+            checkFailurePolicy()
             return
         }
 
@@ -205,7 +222,7 @@ public actor MultiPublisher {
         handle.eventTask = nil
         handles[id] = handle
         await handle.publisher.disconnect()
-        destinationStates[id] = .stopped
+        setDestinationState(id: id, state: .stopped)
     }
 
     // MARK: - Media Sending
@@ -226,7 +243,7 @@ public actor MultiPublisher {
                 }
             }
         }
-        await updateAggregatedStatistics()
+        await updateAndEmitStatistics()
     }
 
     /// Send a video frame to all active destinations.
@@ -250,7 +267,7 @@ public actor MultiPublisher {
                 }
             }
         }
-        await updateAggregatedStatistics()
+        await updateAndEmitStatistics()
     }
 
     /// Send metadata to all active destinations.
@@ -288,15 +305,20 @@ public actor MultiPublisher {
 
     // MARK: - Private Helpers
 
+    private func setDestinationState(id: String, state: DestinationState) {
+        destinationStates[id] = state
+        eventContinuation.yield(.stateChanged(destinationID: id, state: state))
+    }
+
     private func startEventForwarding(
         id: String, publisher: RTMPPublisher
     ) {
-        let events = publisher.events
+        let pubEvents = publisher.events
         let continuation = eventContinuation
         let task = Task { [weak self] in
-            for await event in events {
+            for await event in pubEvents {
                 guard !Task.isCancelled else { return }
-                continuation.yield((id, event))
+                continuation.yield(.destinationEvent(destinationID: id, event: event))
                 await self?.handleDestinationEvent(id: id, event: event)
             }
         }
@@ -317,23 +339,45 @@ public actor MultiPublisher {
     private func updateDestinationState(
         id: String, from publisherState: RTMPPublisherState
     ) {
+        let newState: DestinationState
         switch publisherState {
         case .publishing:
-            destinationStates[id] = .streaming
+            newState = .streaming
         case .connecting, .handshaking:
-            destinationStates[id] = .connecting
+            newState = .connecting
         case .disconnected:
-            destinationStates[id] = .stopped
+            newState = .stopped
         case .reconnecting(let attempt):
-            destinationStates[id] = .reconnecting(attempt: attempt)
+            newState = .reconnecting(attempt: attempt)
         case .failed(let error):
-            destinationStates[id] = .failed(error)
+            newState = .failed(error)
         case .idle, .connected:
-            break
+            return
+        }
+        setDestinationState(id: id, state: newState)
+
+        if case .failed = newState {
+            checkFailurePolicy()
         }
     }
 
-    private func updateAggregatedStatistics() async {
+    private func checkFailurePolicy() {
+        guard case .stopAllOnFailure(let threshold) = failurePolicy else { return }
+
+        let failedCount = destinationStates.values.filter {
+            if case .failed = $0 { return true }
+            return false
+        }.count
+
+        if failedCount >= threshold {
+            eventContinuation.yield(.failureThresholdReached(failedCount: failedCount))
+            Task { [self] in
+                await self.stopAll()
+            }
+        }
+    }
+
+    private func updateAndEmitStatistics() async {
         var perDest: [String: ConnectionStatistics] = [:]
         var totalBytes = 0
         var totalDropped = 0
@@ -360,7 +404,7 @@ public actor MultiPublisher {
             }
         }
 
-        statistics = MultiPublisherStatistics(
+        let updated = MultiPublisherStatistics(
             perDestination: perDest,
             activeCount: active,
             inactiveCount: inactive,
@@ -368,5 +412,7 @@ public actor MultiPublisher {
             totalDroppedFrames: totalDropped,
             timestamp: Double(DispatchTime.now().uptimeNanoseconds) / 1_000_000_000
         )
+        statistics = updated
+        eventContinuation.yield(.statisticsUpdated(updated))
     }
 }

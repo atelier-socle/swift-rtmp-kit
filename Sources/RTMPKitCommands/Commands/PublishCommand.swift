@@ -10,6 +10,7 @@ import RTMPKit
 /// Usage:
 ///   rtmp-cli publish --url rtmps://live.twitch.tv/app --key <key> --file video.flv
 ///   rtmp-cli publish --preset twitch --key <key> --file video.flv
+///   rtmp-cli publish --dest twitch:live_abc --dest youtube:yt-key --file video.flv
 public struct PublishCommand: AsyncParsableCommand {
 
     public static let configuration = CommandConfiguration(
@@ -33,13 +34,20 @@ public struct PublishCommand: AsyncParsableCommand {
     )
     public var preset: String?
 
-    /// Stream key.
+    /// Stream key (required with --url or --preset).
     @Option(name: .long, help: "Stream key")
-    public var key: String
+    public var key: String?
 
     /// FLV file to stream.
     @Option(name: .long, help: "Path to FLV file to stream")
     public var file: String
+
+    /// Multi-destination targets in `platform:key` or `url:key` format.
+    @Option(
+        name: .long,
+        help: "Destination (platform:key or url:key). Repeatable."
+    )
+    public var dest: [DestinationArgument] = []
 
     /// Twitch ingest server (only with --preset twitch).
     @Option(
@@ -72,10 +80,20 @@ public struct PublishCommand: AsyncParsableCommand {
     // MARK: - Validation
 
     public func validate() throws {
-        guard url != nil || preset != nil else {
+        let hasURLOrPreset = url != nil || preset != nil
+        let hasDest = !dest.isEmpty
+
+        guard hasURLOrPreset || hasDest else {
             throw ValidationError(
-                "Either --url or --preset is required"
+                "Either --url/--preset or --dest is required"
             )
+        }
+        if hasURLOrPreset {
+            guard key != nil else {
+                throw ValidationError(
+                    "--key is required with --url or --preset"
+                )
+            }
         }
         guard !(url != nil && preset != nil) else {
             throw ValidationError(
@@ -94,10 +112,8 @@ public struct PublishCommand: AsyncParsableCommand {
     public mutating func run() async throws {
         let display = ProgressDisplay()
 
-        // 1. Build configuration
-        let config = try buildConfiguration()
+        let destinations = try buildDestinations()
 
-        // 2. Open FLV file
         let reader: MediaFileReader
         do {
             reader = try MediaFileReader(path: file)
@@ -119,56 +135,51 @@ public struct PublishCommand: AsyncParsableCommand {
                 "Audio: \(reader.header.hasAudio), "
                     + "Video: \(reader.header.hasVideo)"
             )
-            display.showStatus("Connecting to \(config.url)...")
         }
 
-        // 3. Create publisher and connect
-        let publisher = RTMPPublisher()
-
-        do {
-            try await publisher.publish(configuration: config)
-        } catch let error as RTMPError {
-            display.showError(error.description)
-            throw ExitCode.failure
-        } catch {
-            display.showError("\(error)")
-            throw ExitCode.failure
-        }
-
-        if !quiet {
-            display.showSuccess("Connected — publishing")
-        }
-
-        // 4. Stream FLV tags
-        do {
-            try await streamTags(
+        if destinations.count == 1 {
+            try await runSingleDestination(
+                config: destinations[0].configuration,
                 reader: reader,
-                publisher: publisher,
-                display: quiet ? nil : display
+                display: display
             )
-        } catch let error as RTMPError {
-            display.showError(error.description)
-            await publisher.disconnect()
-            throw ExitCode.failure
-        } catch {
-            display.showError("\(error)")
-            await publisher.disconnect()
-            throw ExitCode.failure
+        } else {
+            try await runMultiDestination(
+                destinations: destinations,
+                reader: reader,
+                display: display
+            )
         }
-
-        if !quiet {
-            print()
-            display.showSuccess("Streaming complete")
-        }
-
-        await publisher.disconnect()
     }
 
-    // MARK: - Private
+    // MARK: - Configuration
 
-    func buildConfiguration() throws
-        -> RTMPConfiguration
-    {
+    /// Build the list of all publishing destinations.
+    func buildDestinations() throws -> [PublishDestination] {
+        var destinations: [PublishDestination] = []
+
+        if url != nil || preset != nil {
+            let config = try buildConfiguration()
+            destinations.append(
+                PublishDestination(id: "primary", configuration: config)
+            )
+        }
+
+        for d in dest {
+            destinations.append(
+                PublishDestination(id: d.id, configuration: d.configuration)
+            )
+        }
+
+        return destinations
+    }
+
+    func buildConfiguration() throws -> RTMPConfiguration {
+        guard let key else {
+            throw ValidationError(
+                "--key is required with --url or --preset"
+            )
+        }
         if let preset {
             let ingestServer = parseIngestServer()
             switch preset.lowercased() {
@@ -215,8 +226,164 @@ public struct PublishCommand: AsyncParsableCommand {
         default: return nil
         }
     }
+}
 
-    private func streamTags(
+// MARK: - Streaming
+
+extension PublishCommand {
+
+    fileprivate func runSingleDestination(
+        config: RTMPConfiguration,
+        reader: MediaFileReader,
+        display: ProgressDisplay
+    ) async throws {
+        if !quiet {
+            display.showStatus("Connecting to \(config.url)...")
+        }
+
+        let publisher = RTMPPublisher()
+
+        do {
+            try await publisher.publish(configuration: config)
+        } catch let error as RTMPError {
+            display.showError(error.description)
+            throw ExitCode.failure
+        } catch {
+            display.showError("\(error)")
+            throw ExitCode.failure
+        }
+
+        if !quiet {
+            display.showSuccess("Connected — publishing")
+        }
+
+        do {
+            try await streamTags(
+                reader: reader,
+                publisher: publisher,
+                display: quiet ? nil : display
+            )
+        } catch let error as RTMPError {
+            display.showError(error.description)
+            await publisher.disconnect()
+            throw ExitCode.failure
+        } catch {
+            display.showError("\(error)")
+            await publisher.disconnect()
+            throw ExitCode.failure
+        }
+
+        if !quiet {
+            print()
+            display.showSuccess("Streaming complete")
+        }
+
+        await publisher.disconnect()
+    }
+
+    fileprivate func runMultiDestination(
+        destinations: [PublishDestination],
+        reader: MediaFileReader,
+        display: ProgressDisplay
+    ) async throws {
+        let multi = MultiPublisher()
+
+        for destination in destinations {
+            try await multi.addDestination(destination)
+            if !quiet {
+                display.showStatus(
+                    "[\(destination.id)] Added"
+                )
+            }
+        }
+
+        if !quiet {
+            display.showStatus(
+                "Starting \(destinations.count) destinations..."
+            )
+        }
+
+        await multi.startAll()
+
+        if !quiet {
+            let states = await multi.destinationStates
+            for (id, state) in states {
+                display.showStatus("[\(id)] \(state)")
+            }
+        }
+
+        do {
+            try await streamTagsMulti(
+                reader: reader,
+                multi: multi,
+                display: quiet ? nil : display
+            )
+        } catch {
+            display.showError("\(error)")
+            await multi.stopAll()
+            throw ExitCode.failure
+        }
+
+        if !quiet {
+            print()
+            display.showSuccess(
+                "Streaming complete to \(destinations.count) destinations"
+            )
+        }
+
+        await multi.stopAll()
+    }
+
+    fileprivate func streamTagsMulti(
+        reader: MediaFileReader,
+        multi: MultiPublisher,
+        display: ProgressDisplay?
+    ) async throws {
+        var tags = reader.tags()
+        var baseTime: UInt64 = 0
+
+        while let tag = tags.next() {
+            if tag.timestamp > 0 {
+                let delayMs = UInt64(tag.timestamp) - baseTime
+                if delayMs > 0 {
+                    try await Task.sleep(
+                        nanoseconds: delayMs * 1_000_000
+                    )
+                }
+                baseTime = UInt64(tag.timestamp)
+            }
+
+            if tag.isAudio {
+                await multi.sendAudio(
+                    tag.data, timestamp: tag.timestamp
+                )
+            } else if tag.isVideo {
+                let isKeyframe =
+                    !tag.data.isEmpty
+                    && (tag.data[0] & 0xF0) == 0x10
+                await multi.sendVideo(
+                    tag.data,
+                    timestamp: tag.timestamp,
+                    isKeyframe: isKeyframe
+                )
+            }
+
+            if display != nil {
+                let stats = await multi.statistics
+                let sent = ProgressDisplay.formatBytes(
+                    UInt64(stats.totalBytesSent)
+                )
+                let active = stats.activeCount
+                print(
+                    "\r[\(active) active] \(sent) sent",
+                    terminator: ""
+                )
+                fflush(nil)
+            }
+        }
+    }
+
+    fileprivate func streamTags(
         reader: MediaFileReader,
         publisher: RTMPPublisher,
         display: ProgressDisplay?
@@ -227,7 +394,6 @@ public struct PublishCommand: AsyncParsableCommand {
         var sentFirstVideo = false
 
         while let tag = tags.next() {
-            // Pace sending based on timestamps
             if tag.timestamp > 0 {
                 let delayMs = UInt64(tag.timestamp) - baseTime
                 if delayMs > 0 {
