@@ -22,11 +22,11 @@
 class SwiftRtmpKit < Formula
   desc "CLI tool for publishing live streams to RTMP/RTMPS servers"
   homepage "https://github.com/atelier-socle/swift-rtmp-kit"
-  url "https://github.com/atelier-socle/swift-rtmp-kit/archive/refs/tags/0.1.0.tar.gz"
+  url "https://github.com/atelier-socle/swift-rtmp-kit/archive/refs/tags/0.2.0.tar.gz"
   sha256 "UPDATE_SHA256_AFTER_RELEASE"
   license "Apache-2.0"
 
-  depends_on xcode: ["26.0", :build]
+  depends_on xcode: ["26.2", :build]
 
   def install
     system "swift", "build", "-c", "release", "--disable-sandbox"
@@ -34,6 +34,21 @@ class SwiftRtmpKit < Formula
   end
 
   test do
-    system "#{bin}/rtmp-cli", "--help"
+    # Version check
+    assert_match "rtmp-cli", shell_output("#{bin}/rtmp-cli --help")
+
+    # Subcommands present
+    help_output = shell_output("#{bin}/rtmp-cli --help")
+    assert_match "publish",          help_output
+    assert_match "probe",            help_output
+    assert_match "record",           help_output
+    assert_match "server",           help_output
+    assert_match "test-connection",  help_output
+
+    # Subcommand --help (validates wiring)
+    assert_match "url",   shell_output("#{bin}/rtmp-cli publish --help")
+    assert_match "url",   shell_output("#{bin}/rtmp-cli probe --help")
+    assert_match "url",   shell_output("#{bin}/rtmp-cli record --help")
+    assert_match "start", shell_output("#{bin}/rtmp-cli server --help")
   end
 end
