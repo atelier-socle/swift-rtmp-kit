@@ -273,6 +273,26 @@ public actor RTMPPublisher {
         }
     }
 
+    // MARK: - Bandwidth Probing
+
+    /// Probe the server and return the bandwidth measurement result.
+    ///
+    /// Runs a ``BandwidthProbe`` against the given URL to measure
+    /// available uplink bandwidth before publishing.
+    ///
+    /// - Parameters:
+    ///   - url: The RTMP server URL to probe.
+    ///   - probeConfig: Probe configuration (default: `.standard`).
+    /// - Returns: The probe result with bandwidth and quality measurements.
+    /// - Throws: If the connection or probe fails.
+    public func probeAndSelect(
+        url: String,
+        probeConfig: ProbeConfiguration = .standard
+    ) async throws -> ProbeResult {
+        let probe = BandwidthProbe(configuration: probeConfig)
+        return try await probe.probe(url: url)
+    }
+
     // MARK: - Media Sending
 
     /// Send a video frame.

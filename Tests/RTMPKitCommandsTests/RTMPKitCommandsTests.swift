@@ -22,10 +22,10 @@ struct RTMPKitCommandsCoreTests {
         )
     }
 
-    @Test("has 3 subcommands")
+    @Test("has 4 subcommands")
     func subcommandCount() {
         #expect(
-            RTMPKitCommand.configuration.subcommands.count == 3
+            RTMPKitCommand.configuration.subcommands.count == 4
         )
     }
 
