@@ -104,20 +104,21 @@ extension BandwidthProbe {
     ) async throws -> ProbeResult {
         let burstData = [UInt8](repeating: 0xAA, count: configuration.burstSize)
         let startTime = ContinuousClock.now
-        let endTime = startTime + .milliseconds(Int(configuration.duration * 1000))
-
+        let endTime = startTime.advanced(
+            by: .milliseconds(Int(configuration.duration * 1000))
+        )
+        let targetBursts = max(
+            1, Int(configuration.duration / configuration.burstInterval)
+        )
+        let intervalNs = UInt64(configuration.burstInterval * 1_000_000_000)
         var rttSamples: [Double] = []
         var throughputSamples: [Double] = []
         var totalBurstsSent = 0
         var lostBursts = 0
 
-        while ContinuousClock.now < endTime {
-            guard !cancelled else {
-                throw CancellationError()
-            }
-
+        while totalBurstsSent < targetBursts {
+            guard !cancelled else { throw CancellationError() }
             let burstStart = ContinuousClock.now
-
             do {
                 try await transport.send(burstData)
             } catch {
@@ -126,47 +127,34 @@ extension BandwidthProbe {
                 continue
             }
 
-            let sendDuration = burstStart.duration(to: ContinuousClock.now)
-            let sendMs =
-                Double(sendDuration.components.attoseconds)
-                / 1_000_000_000_000_000.0
-            let sendSec = sendMs / 1000.0
-
+            let sendMs = sendMilliseconds(since: burstStart)
+            let sendSec = max(sendMs / 1000.0, 0.000_001)
             totalBurstsSent += 1
 
-            // Measure RTT by checking time for send to complete
-            // TCP send returning means the data was buffered/sent
-            let rttMs = max(0.1, sendMs)
-
-            // Only record measurement samples after warmup
             if totalBurstsSent > configuration.warmupBursts {
-                rttSamples.append(rttMs)
-
-                // Throughput: bytes sent / time taken
-                if sendSec > 0 {
-                    let bps = Double(configuration.burstSize * 8) / sendSec
-                    throughputSamples.append(bps)
-                }
+                rttSamples.append(max(0.1, sendMs))
+                throughputSamples.append(
+                    Double(configuration.burstSize * 8) / sendSec
+                )
             }
 
-            // Report progress
-            let elapsed = startTime.duration(to: ContinuousClock.now)
-            let elapsedSec =
-                Double(elapsed.components.attoseconds)
-                / 1_000_000_000_000_000_000.0
-            let pct = min(1.0, elapsedSec / configuration.duration)
-            progressContinuation.yield(pct)
+            progressContinuation.yield(
+                min(1.0, Double(totalBurstsSent) / Double(targetBursts))
+            )
 
-            // Wait between bursts
-            let intervalNs = UInt64(configuration.burstInterval * 1_000_000_000)
-            try await Task.sleep(nanoseconds: intervalNs)
+            if configuration.warmupBursts > 0
+                && ContinuousClock.now >= endTime
+                && totalBurstsSent > configuration.warmupBursts
+            {
+                break
+            }
+
+            if ContinuousClock.now < endTime {
+                try await Task.sleep(nanoseconds: intervalNs)
+            }
         }
 
-        let totalDuration = startTime.duration(to: ContinuousClock.now)
-        let totalSec =
-            Double(totalDuration.components.attoseconds)
-            / 1_000_000_000_000_000_000.0
-
+        let totalSec = elapsedSeconds(since: startTime)
         return buildResult(
             rttSamples: rttSamples,
             throughputSamples: throughputSamples,
@@ -174,6 +162,23 @@ extension BandwidthProbe {
             lostBursts: lostBursts,
             probeDuration: totalSec
         )
+    }
+
+    private func sendMilliseconds(
+        since start: ContinuousClock.Instant
+    ) -> Double {
+        let d = start.duration(to: ContinuousClock.now)
+        return Double(d.components.attoseconds)
+            / 1_000_000_000_000_000.0
+    }
+
+    private func elapsedSeconds(
+        since start: ContinuousClock.Instant
+    ) -> Double {
+        let d = start.duration(to: ContinuousClock.now)
+        return Double(d.components.seconds)
+            + Double(d.components.attoseconds)
+            / 1_000_000_000_000_000_000.0
     }
 
     private func buildResult(

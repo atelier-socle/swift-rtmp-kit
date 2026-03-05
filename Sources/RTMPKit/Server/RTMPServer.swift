@@ -77,6 +77,12 @@ public actor RTMPServer {
 
     // MARK: - Stream Management
 
+    /// Stream name assigned per session (server-local, no cross-actor lookup).
+    var sessionStreamNames: [UUID: String] = [:]
+
+    /// Continuations waiting for a session's stream name to be set.
+    var streamNameWaiters: [UUID: [CheckedContinuation<Void, Never>]] = [:]
+
     /// Relays attached per stream name.
     var relays: [String: RTMPStreamRelay] = [:]
 
@@ -194,6 +200,11 @@ public actor RTMPServer {
 
         sessionTasks.removeAll()
         sessions.removeAll()
+        sessionStreamNames.removeAll()
+        for (_, waiters) in streamNameWaiters {
+            for waiter in waiters { waiter.resume() }
+        }
+        streamNameWaiters.removeAll()
         state = .stopped
         emitEvent(.stopped)
     }
@@ -209,7 +220,7 @@ public actor RTMPServer {
         sessionTasks.removeValue(forKey: id)
         await session.close()
         sessions.removeValue(forKey: id)
-        let streamName = await session.streamName
+        let streamName = sessionStreamNames.removeValue(forKey: id)
         if let streamName {
             emitEvent(.streamStopped(session: session, streamName: streamName))
         }
@@ -219,14 +230,31 @@ public actor RTMPServer {
 
     /// Close all sessions publishing to a specific stream name.
     ///
+    /// Waits for sessions still processing their handshake to set
+    /// their stream name before matching. Uses the server-local
+    /// stream name registry for atomic lookup.
+    ///
     /// - Parameter streamName: The stream name to match.
     public func closeSessions(streamName: String) async {
-        var toClose: [UUID] = []
-        for (id, session) in sessions {
-            let name = await session.streamName
-            if name == streamName {
-                toClose.append(id)
+        // Wait for sessions that haven't set their stream name yet.
+        for id in Array(sessions.keys) {
+            if sessionStreamNames[id] == nil && sessions[id] != nil {
+                await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                    // Re-check atomically inside the closure.
+                    if sessionStreamNames[id] == nil
+                        && sessions[id] != nil
+                    {
+                        streamNameWaiters[id, default: []]
+                            .append(cont)
+                    } else {
+                        cont.resume()
+                    }
+                }
             }
+        }
+
+        let toClose = sessions.keys.filter {
+            sessionStreamNames[$0] == streamName
         }
         for id in toClose {
             await closeSession(id: id)

@@ -3,11 +3,19 @@
 
 import Dispatch
 
+/// Batched metrics context to minimise actor hops during periodic export.
+struct MetricsContext {
+    let stats: RTMPPublisherStatistics
+    let exporter: (any RTMPMetricsExporter)?
+    let labels: [String: String]
+}
+
 extension RTMPPublisher {
 
     /// Attach a metrics exporter with periodic export.
     ///
-    /// Statistics are pushed every `interval` seconds to the exporter.
+    /// Performs an immediate first export inline (no Task scheduling
+    /// delay), then fires subsequent exports every `interval` seconds.
     /// Call before or after `publish()`.
     ///
     /// - Parameters:
@@ -18,18 +26,24 @@ extension RTMPPublisher {
         _ exporter: any RTMPMetricsExporter,
         interval: Double = 10.0,
         labels: [String: String] = [:]
-    ) {
+    ) async {
         metricsExporter = exporter
         metricsLabels = labels
         metricsTask?.cancel()
+
+        // First export fires inline — no Task scheduling delay.
+        let stats = await metricsSnapshot()
+        await exporter.export(stats, labels: labels)
+
+        // Subsequent exports via periodic timer.
         metricsTask = Task { [weak self] in
             let intervalNs = UInt64(interval * 1_000_000_000)
             while !Task.isCancelled {
                 guard let self else { return }
-                let stats = await self.metricsSnapshot()
-                let exp = await self.metricsExporter
-                let lbl = await self.metricsLabels
-                await exp?.export(stats, labels: lbl)
+                let context = await self.metricsContext()
+                await context.exporter?.export(
+                    context.stats, labels: context.labels
+                )
                 try? await Task.sleep(nanoseconds: intervalNs)
             }
         }
@@ -54,6 +68,16 @@ extension RTMPPublisher {
         await metricsExporter?.flush()
         metricsExporter = nil
         metricsLabels = [:]
+    }
+
+    /// Capture metrics context in a single actor entry for periodic export.
+    func metricsContext() async -> MetricsContext {
+        let stats = await metricsSnapshot()
+        return MetricsContext(
+            stats: stats,
+            exporter: metricsExporter,
+            labels: metricsLabels
+        )
     }
 
     /// Generate a statistics snapshot of the current publisher state.

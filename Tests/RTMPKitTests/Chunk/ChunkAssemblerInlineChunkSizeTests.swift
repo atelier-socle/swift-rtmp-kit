@@ -16,7 +16,6 @@ struct ChunkAssemblerInlineChunkSizeTests {
         #expect(assembler.chunkSize == 128)
 
         // Build a SetChunkSize message (type 1, 4 bytes payload)
-        let chunkSizePayload: [UInt8] = [0x00, 0x00, 0x10, 0x00]  // 4096
         let setChunkSizeMsg = RTMPMessage(
             controlMessage: .setChunkSize(4096)
         )

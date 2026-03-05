@@ -44,6 +44,8 @@ extension RTMPServer {
 
         case .fcPublish(let txnID, let name):
             await session.setStreamName(name)
+            sessionStreamNames[session.id] = name
+            resumeStreamNameWaiters(for: session.id)
             try await session.sendOnFCPublish(streamName: name)
             _ = txnID
 
@@ -96,6 +98,8 @@ extension RTMPServer {
 
         if accepted {
             await session.transitionToPublishing(streamName: name)
+            sessionStreamNames[session.id] = name
+            resumeStreamNameWaiters(for: session.id)
             try await session.sendPublishStart(streamName: name)
             emitEvent(
                 .streamStarted(session: session, streamName: name)
@@ -208,8 +212,19 @@ extension RTMPServer {
         sessionTasks.removeValue(forKey: sessionID)
         await session.close()
         sessions.removeValue(forKey: sessionID)
+        sessionStreamNames.removeValue(forKey: sessionID)
+        resumeStreamNameWaiters(for: sessionID)
         emitEvent(.sessionDisconnected(id: sessionID, reason: reason))
         await delegate?.serverSessionDidDisconnect(session, reason: reason)
+    }
+
+    /// Resume any continuations waiting for a session's stream name.
+    func resumeStreamNameWaiters(for sessionID: UUID) {
+        for waiter in streamNameWaiters.removeValue(
+            forKey: sessionID
+        ) ?? [] {
+            waiter.resume()
+        }
     }
 
     // MARK: - Relay / DVR Forwarding
