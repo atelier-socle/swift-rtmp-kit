@@ -34,6 +34,10 @@ public struct RTMPServerConfiguration: Sendable {
     /// DVR configuration used when ``autoDVR`` is true.
     public var dvrConfiguration: RecordingConfiguration
 
+    /// Security policy combining access control, rate limiting, and
+    /// stream key validation. Default: ``RTMPServerSecurityPolicy/open``.
+    public var securityPolicy: RTMPServerSecurityPolicy
+
     /// Creates a server configuration.
     ///
     /// - Parameters:
@@ -46,6 +50,7 @@ public struct RTMPServerConfiguration: Sendable {
     ///   - streamKeyValidator: Validator for incoming stream keys.
     ///   - autoDVR: Whether to auto-record all ingest streams.
     ///   - dvrConfiguration: Recording config for auto-DVR.
+    ///   - securityPolicy: Security policy combining access control, rate limiting, and validation.
     public init(
         port: Int = 1935,
         host: String = "0.0.0.0",
@@ -55,7 +60,8 @@ public struct RTMPServerConfiguration: Sendable {
         chunkSize: Int = 4096,
         streamKeyValidator: any StreamKeyValidator = AllowAllStreamKeyValidator(),
         autoDVR: Bool = false,
-        dvrConfiguration: RecordingConfiguration = .default
+        dvrConfiguration: RecordingConfiguration = .default,
+        securityPolicy: RTMPServerSecurityPolicy = .open
     ) {
         self.port = port
         self.host = host
@@ -66,6 +72,7 @@ public struct RTMPServerConfiguration: Sendable {
         self.streamKeyValidator = streamKeyValidator
         self.autoDVR = autoDVR
         self.dvrConfiguration = dvrConfiguration
+        self.securityPolicy = securityPolicy
     }
 }
 
