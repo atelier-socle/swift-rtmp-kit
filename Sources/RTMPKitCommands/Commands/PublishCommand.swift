@@ -257,6 +257,18 @@ extension PublishCommand {
 
         let publisher = RTMPPublisher()
 
+        // Wire metrics exporters
+        if let promPath = metricsPrometheus {
+            let exporter = PrometheusExporter(outputPath: promPath)
+            await publisher.setMetricsExporter(exporter)
+        } else if let statsdArg = metricsStatsd {
+            let parts = statsdArg.split(separator: ":", maxSplits: 1)
+            let host = parts.count > 0 ? String(parts[0]) : "127.0.0.1"
+            let port = parts.count > 1 ? Int(parts[1]) ?? 8125 : 8125
+            let exporter = StatsDExporter(host: host, port: port)
+            await publisher.setMetricsExporter(exporter)
+        }
+
         do {
             try await publisher.publish(configuration: config)
         } catch let error as RTMPError {
@@ -367,7 +379,9 @@ extension PublishCommand {
                 baseTime = UInt64(tag.timestamp)
             }
 
-            if tag.isAudio {
+            if tag.isScript {
+                await multi.sendRawDataMessage(tag.data)
+            } else if tag.isAudio {
                 await multi.sendAudio(
                     tag.data, timestamp: tag.timestamp
                 )
@@ -418,7 +432,9 @@ extension PublishCommand {
                 baseTime = UInt64(tag.timestamp)
             }
 
-            if tag.isAudio {
+            if tag.isScript {
+                try await publisher.sendDataMessagePayload(tag.data)
+            } else if tag.isAudio {
                 if !sentFirstAudio && !tag.data.isEmpty {
                     try await publisher.sendAudioConfig(
                         tag.data

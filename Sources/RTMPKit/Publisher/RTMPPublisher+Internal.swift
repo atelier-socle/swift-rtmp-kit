@@ -27,6 +27,7 @@ extension RTMPPublisher {
 
         do {
             let parsed = try StreamKey(url: authURL, streamKey: config.streamKey)
+            let tcUrl = buildTcUrl(baseUrl: authURL, app: parsed.app)
             transitionState(to: .connecting)
             try await transport.connect(
                 host: parsed.host, port: parsed.port, useTLS: parsed.useTLS
@@ -35,12 +36,14 @@ extension RTMPPublisher {
             transitionState(to: .handshaking)
             try await performRTMPConnect(
                 streamKey: parsed, enhancedRTMP: config.enhancedRTMP,
-                flashVersion: config.flashVersion
+                flashVersion: config.flashVersion,
+                tcUrlOverride: tcUrl
             )
             try await sendSetChunkSize(config.chunkSize)
             transitionState(to: .connected)
             try await performCreateStream(streamName: parsed.key)
             try await performPublish(streamName: parsed.key)
+            activeStreamName = parsed.key
             transitionState(to: .publishing)
             await startABRMonitorIfNeeded()
             startQualityMonitorIfNeeded()
@@ -67,13 +70,14 @@ extension RTMPPublisher {
     internal func performRTMPConnect(
         streamKey: StreamKey,
         enhancedRTMP: Bool,
-        flashVersion: String = "FMLE/3.0 (compatible; FMSc/1.0)"
+        flashVersion: String = "FMLE/3.0 (compatible; FMSc/1.0)",
+        tcUrlOverride: String? = nil
     ) async throws {
         let txnID = connection.allocateTransactionID()
         var properties = ConnectProperties(
             app: streamKey.app,
             flashVer: flashVersion,
-            tcUrl: streamKey.tcUrl
+            tcUrl: tcUrlOverride ?? streamKey.tcUrl
         )
         if enhancedRTMP {
             properties.additional.append(
@@ -188,6 +192,11 @@ extension RTMPPublisher {
                             challenge: params, clientChallenge: clientChallenge
                         )
                         throw AdobeAuthRetryError(authQuery: authQuery)
+                    }
+
+                    if Self.isTokenExpiredDescription(status.description) {
+                        emitEvent(.authenticationFailed(reason: "Token expired"))
+                        throw RTMPError.tokenExpired
                     }
 
                     throw RTMPError.connectRejected(
@@ -471,6 +480,39 @@ extension RTMPPublisher {
         }
     }
 
+    /// Build tcUrl from original URL preserving query string.
+    ///
+    /// The tcUrl must include the scheme, host, port, app, and any
+    /// query parameters (e.g. auth credentials). The stream key
+    /// portion is NOT included in the tcUrl.
+    internal func buildTcUrl(baseUrl: String, app: String) -> String? {
+        // Find the app segment in the URL and take everything up to
+        // and including it, preserving query strings.
+        // For URLs like rtmp://host:port/app?user=x&pass=y/streamkey
+        // we want rtmp://host:port/app?user=x&pass=y
+        guard let schemeEnd = baseUrl.range(of: "://") else { return nil }
+        let afterScheme = baseUrl[schemeEnd.upperBound...]
+
+        // Find the first slash after host:port
+        guard let firstSlash = afterScheme.firstIndex(of: "/") else {
+            return nil
+        }
+
+        // The path starts after the first slash
+        let pathAndQuery = String(afterScheme[afterScheme.index(after: firstSlash)...])
+
+        // Strip the stream key (last path component after app)
+        // by keeping only up to and including the app segment
+        let hostPart = String(baseUrl[baseUrl.startIndex...firstSlash])
+
+        // Find query string if present
+        if let queryIdx = pathAndQuery.firstIndex(of: "?") {
+            let query = String(pathAndQuery[queryIdx...])
+            return "\(hostPart)\(app)\(query)"
+        }
+        return nil
+    }
+
     internal func buildConnectionURL(_ configuration: RTMPConfiguration) -> String {
         switch configuration.authentication {
         case .none:
@@ -484,6 +526,15 @@ extension RTMPPublisher {
         case .adobeChallenge:
             return configuration.url
         }
+    }
+
+    /// Check if a rejection description indicates token expiry.
+    internal static func isTokenExpiredDescription(_ desc: String) -> Bool {
+        let lower = desc.lowercased()
+        return lower.contains("token has expired")
+            || lower.contains("token expired")
+            || lower.contains("tokenexpired")
+            || lower.contains("401")
     }
 
     internal func monotonicNow() -> UInt64 {

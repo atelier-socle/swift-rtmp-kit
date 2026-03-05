@@ -55,7 +55,7 @@ extension DestinationArgument {
         guard !streamKey.isEmpty else { return nil }
         return DestinationArgument(
             configuration: RTMPConfiguration(url: url, streamKey: streamKey),
-            id: url
+            id: "\(url)/\(streamKey)"
         )
     }
 
@@ -69,7 +69,7 @@ extension DestinationArgument {
         guard let config = platformConfiguration(platform, streamKey: streamKey) else {
             return nil
         }
-        return DestinationArgument(configuration: config, id: platform)
+        return DestinationArgument(configuration: config, id: "\(platform)/\(streamKey)")
     }
 
     /// Map a platform name to an ``RTMPConfiguration``.

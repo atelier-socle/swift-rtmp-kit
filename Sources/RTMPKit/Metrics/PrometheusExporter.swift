@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Atelier Socle SAS
 
+import Foundation
+
 /// Exports RTMPKit metrics in Prometheus text exposition format.
 ///
 /// Output is pure text — pipe to any HTTP server or write to a file
@@ -16,35 +18,54 @@ public struct PrometheusExporter: RTMPMetricsExporter, Sendable {
     /// Metric name prefix. Default: "rtmp".
     public let prefix: String
 
+    /// Optional file path for writing metrics. When set, metrics are
+    /// written to this file instead of stdout.
+    public let outputPath: String?
+
     /// Creates a Prometheus exporter.
     ///
-    /// - Parameter prefix: Metric name prefix. Default: "rtmp".
-    public init(prefix: String = "rtmp") {
+    /// - Parameters:
+    ///   - prefix: Metric name prefix. Default: "rtmp".
+    ///   - outputPath: File path for writing metrics. If `nil`, prints to stdout.
+    public init(prefix: String = "rtmp", outputPath: String? = nil) {
         self.prefix = prefix
+        self.outputPath = outputPath
     }
 
     // MARK: - RTMPMetricsExporter
 
-    /// Export publisher statistics by printing to stdout.
+    /// Export publisher statistics.
     public func export(
         _ statistics: RTMPPublisherStatistics,
         labels: [String: String]
     ) async {
-        let output = render(statistics, labels: labels)
-        print(output, terminator: "")
+        let text = render(statistics, labels: labels)
+        writeOutput(text)
     }
 
-    /// Export server statistics by printing to stdout.
+    /// Export server statistics.
     public func export(
         _ statistics: RTMPServerStatistics,
         labels: [String: String]
     ) async {
-        let output = render(statistics, labels: labels)
-        print(output, terminator: "")
+        let text = render(statistics, labels: labels)
+        writeOutput(text)
     }
 
     /// Flush is a no-op for the Prometheus exporter.
     public func flush() async {}
+
+    // MARK: - Output
+
+    private func writeOutput(_ text: String) {
+        if let path = outputPath {
+            try? text.write(
+                toFile: path, atomically: true, encoding: .utf8
+            )
+        } else {
+            print(text, terminator: "")
+        }
+    }
 
     // MARK: - Rendering
 

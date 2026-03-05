@@ -54,6 +54,7 @@ public actor RTMPPublisher {
 
     internal var metadataUpdater: MetadataUpdater?
     internal var hasAttemptedAdobeAuth = false
+    internal var activeStreamName: String?
 
     // MARK: - Adaptive Bitrate
 
@@ -167,6 +168,7 @@ public actor RTMPPublisher {
         }
 
         let parsed = try StreamKey(url: url, streamKey: streamKey)
+        let tcUrl = buildTcUrl(baseUrl: url, app: parsed.app)
         transitionState(to: .connecting)
 
         do {
@@ -180,12 +182,14 @@ public actor RTMPPublisher {
             try await performRTMPConnect(
                 streamKey: parsed,
                 enhancedRTMP: enhancedRTMP,
-                flashVersion: flashVersion
+                flashVersion: flashVersion,
+                tcUrlOverride: tcUrl
             )
             try await sendSetChunkSize(chunkSize)
             transitionState(to: .connected)
             try await performCreateStream(streamName: parsed.key)
             try await performPublish(streamName: parsed.key)
+            activeStreamName = parsed.key
             transitionState(to: .publishing)
             await startABRMonitorIfNeeded()
             startQualityMonitorIfNeeded()
@@ -237,7 +241,8 @@ public actor RTMPPublisher {
         if session.state == .publishing, let streamID = connection.streamID {
             let txn1 = connection.allocateTransactionID()
             let fcUnpub = RTMPCommand.fcUnpublish(
-                transactionID: Double(txn1), streamName: ""
+                transactionID: Double(txn1),
+                streamName: activeStreamName ?? ""
             )
             try? await sendCommand(fcUnpub, chunkStreamID: .command)
 
@@ -257,6 +262,7 @@ public actor RTMPPublisher {
         serverInfo = ServerInfo()
         currentConfiguration = nil
         hasAttemptedAdobeAuth = false
+        activeStreamName = nil
     }
 
     // MARK: - Media Sending

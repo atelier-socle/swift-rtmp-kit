@@ -58,45 +58,145 @@ public struct RecordCommand: AsyncParsableCommand {
 
     public mutating func run() async throws {
         let config = buildRecordingConfig()
+        try ensureOutputDirectory(config)
+
+        let reader = try openFLVFile()
 
         print("Publishing \(file) to \(url)...")
+        printOutputDirectory(config)
+
+        let publisher = RTMPPublisher()
+        try await publisher.startRecording(configuration: config)
+
+        do {
+            try await publisher.publish(url: url, streamKey: key)
+        } catch let error as RTMPError {
+            print("Error: \(error.description)")
+            throw ExitCode.failure
+        }
+
+        print("Streaming and recording...")
+
+        do {
+            try await streamAndRecord(
+                reader: reader, publisher: publisher
+            )
+        } catch let error as RTMPError {
+            print("Error during streaming: \(error.description)")
+        } catch {
+            print("Error during streaming: \(error)")
+        }
+
+        let seg = try await publisher.stopRecording()
+        await publisher.disconnect()
+        printSummary(seg)
+    }
+
+    // MARK: - Private Helpers
+
+    private func ensureOutputDirectory(
+        _ config: RecordingConfiguration
+    ) throws {
+        guard let dir = config.outputDirectory else { return }
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+        if !fm.fileExists(atPath: dir, isDirectory: &isDir) {
+            do {
+                try fm.createDirectory(
+                    atPath: dir,
+                    withIntermediateDirectories: true
+                )
+            } catch {
+                throw ValidationError(
+                    "Output directory does not exist and could not"
+                        + " be created: \(dir)"
+                )
+            }
+        }
+    }
+
+    private func openFLVFile() throws -> MediaFileReader {
+        do {
+            return try MediaFileReader(path: file)
+        } catch {
+            print("Error: Failed to open FLV file: \(error)")
+            throw ExitCode.failure
+        }
+    }
+
+    private func printOutputDirectory(
+        _ config: RecordingConfiguration
+    ) {
         if let dir = config.outputDirectory {
             print("Recording to: \(dir)/")
         } else {
             print("Recording to: current directory")
         }
+    }
 
-        let publisher = RTMPPublisher()
-        try await publisher.startRecording(configuration: config)
-        try await publisher.publish(
-            url: url, streamKey: key
-        )
-
-        print("Streaming and recording... Press Ctrl+C to stop.")
-
-        // Keep running until interrupted
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            let source = DispatchSource.makeSignalSource(
-                signal: SIGINT, queue: .main
-            )
-            source.setEventHandler {
-                source.cancel()
-                continuation.resume()
-            }
-            source.resume()
-        }
-
-        let segment = try await publisher.stopRecording()
-        await publisher.disconnect()
-
+    private func printSummary(_ segment: RecordingSegment?) {
         if let segment {
             print("\nRecording complete:")
             print("  File: \(segment.filePath)")
-            print("  Duration: \(String(format: "%.1f", segment.duration))s")
+            print(
+                "  Duration: "
+                    + "\(String(format: "%.1f", segment.duration))s"
+            )
             print("  Size: \(segment.fileSize) bytes")
             print(
-                "  Frames: \(segment.videoFrameCount) video, \(segment.audioFrameCount) audio"
+                "  Frames: \(segment.videoFrameCount) video,"
+                    + " \(segment.audioFrameCount) audio"
             )
+        } else {
+            print("\nRecording complete (no segment produced).")
+        }
+    }
+
+    private func streamAndRecord(
+        reader: MediaFileReader, publisher: RTMPPublisher
+    ) async throws {
+        var tags = reader.tags()
+        var baseTime: UInt64 = 0
+        var sentFirstAudio = false
+        var sentFirstVideo = false
+
+        while let tag = tags.next() {
+            if tag.timestamp > 0 {
+                let delayMs = UInt64(tag.timestamp) - baseTime
+                if delayMs > 0 {
+                    try await Task.sleep(
+                        nanoseconds: delayMs * 1_000_000
+                    )
+                }
+                baseTime = UInt64(tag.timestamp)
+            }
+
+            if tag.isScript {
+                try await publisher.sendDataMessagePayload(tag.data)
+            } else if tag.isAudio {
+                if !sentFirstAudio && !tag.data.isEmpty {
+                    try await publisher.sendAudioConfig(tag.data)
+                    sentFirstAudio = true
+                } else {
+                    try await publisher.sendAudio(
+                        tag.data, timestamp: tag.timestamp
+                    )
+                }
+            } else if tag.isVideo {
+                if !sentFirstVideo && !tag.data.isEmpty {
+                    try await publisher.sendVideoConfig(tag.data)
+                    sentFirstVideo = true
+                } else {
+                    let isKeyframe =
+                        !tag.data.isEmpty
+                        && (tag.data[0] & 0xF0) == 0x10
+                    try await publisher.sendVideo(
+                        tag.data,
+                        timestamp: tag.timestamp,
+                        isKeyframe: isKeyframe
+                    )
+                }
+            }
         }
     }
 

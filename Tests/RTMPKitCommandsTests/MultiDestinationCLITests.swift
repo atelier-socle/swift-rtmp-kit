@@ -15,7 +15,7 @@ struct DestinationArgumentParsingTests {
     func parseTwitch() {
         let arg = DestinationArgument(argument: "twitch:live_abc123")
         #expect(arg != nil)
-        #expect(arg?.id == "twitch")
+        #expect(arg?.id == "twitch/live_abc123")
         #expect(arg?.configuration.streamKey == "live_abc123")
         #expect(arg?.configuration.url.contains("twitch") == true)
     }
@@ -24,7 +24,7 @@ struct DestinationArgumentParsingTests {
     func parseYouTube() {
         let arg = DestinationArgument(argument: "youtube:yyyy-zzzz")
         #expect(arg != nil)
-        #expect(arg?.id == "youtube")
+        #expect(arg?.id == "youtube/yyyy-zzzz")
         #expect(arg?.configuration.streamKey == "yyyy-zzzz")
         #expect(arg?.configuration.url.contains("youtube") == true)
     }
@@ -33,7 +33,7 @@ struct DestinationArgumentParsingTests {
     func parseFacebook() {
         let arg = DestinationArgument(argument: "facebook:FB-xxx")
         #expect(arg != nil)
-        #expect(arg?.id == "facebook")
+        #expect(arg?.id == "facebook/FB-xxx")
         #expect(arg?.configuration.streamKey == "FB-xxx")
         #expect(arg?.configuration.url.contains("facebook") == true)
     }
@@ -42,7 +42,7 @@ struct DestinationArgumentParsingTests {
     func parseKick() {
         let arg = DestinationArgument(argument: "kick:mykey")
         #expect(arg != nil)
-        #expect(arg?.id == "kick")
+        #expect(arg?.id == "kick/mykey")
         #expect(arg?.configuration.streamKey == "mykey")
     }
 
@@ -52,7 +52,7 @@ struct DestinationArgumentParsingTests {
             argument: "rtmp://server.example.com/app:mykey"
         )
         #expect(arg != nil)
-        #expect(arg?.id == "rtmp://server.example.com/app")
+        #expect(arg?.id == "rtmp://server.example.com/app/mykey")
         #expect(arg?.configuration.streamKey == "mykey")
         #expect(arg?.configuration.url == "rtmp://server.example.com/app")
     }
@@ -63,7 +63,7 @@ struct DestinationArgumentParsingTests {
             argument: "rtmps://secure.server.com/live:securekey"
         )
         #expect(arg != nil)
-        #expect(arg?.id == "rtmps://secure.server.com/live")
+        #expect(arg?.id == "rtmps://secure.server.com/live/securekey")
         #expect(arg?.configuration.streamKey == "securekey")
         #expect(arg?.configuration.url == "rtmps://secure.server.com/live")
     }
@@ -90,7 +90,7 @@ struct DestinationArgumentParsingTests {
     func caseInsensitive() {
         let arg = DestinationArgument(argument: "TWITCH:mykey")
         #expect(arg != nil)
-        #expect(arg?.id == "twitch")
+        #expect(arg?.id == "twitch/mykey")
     }
 }
 
@@ -106,7 +106,7 @@ struct PublishCommandDestFlagTests {
             "--file", "video.flv"
         ])
         #expect(cmd.dest.count == 1)
-        #expect(cmd.dest[0].id == "twitch")
+        #expect(cmd.dest[0].id == "twitch/live_key")
     }
 
     @Test("--dest parses multiple destinations")
@@ -128,8 +128,8 @@ struct PublishCommandDestFlagTests {
         ])
         let destinations = try cmd.buildDestinations()
         #expect(destinations.count == 2)
-        #expect(destinations[0].id == "twitch")
-        #expect(destinations[1].id == "youtube")
+        #expect(destinations[0].id == "twitch/live_key")
+        #expect(destinations[1].id == "youtube/yt_key")
     }
 
     @Test("buildDestinations with --url/--key and --dest combines all")
@@ -143,7 +143,7 @@ struct PublishCommandDestFlagTests {
         let destinations = try cmd.buildDestinations()
         #expect(destinations.count == 2)
         #expect(destinations[0].id == "primary")
-        #expect(destinations[1].id == "twitch")
+        #expect(destinations[1].id == "twitch/live_key")
     }
 
     @Test("validation fails with no --url, --preset, or --dest")

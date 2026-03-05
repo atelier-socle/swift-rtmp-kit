@@ -101,8 +101,10 @@ internal final class RTMPChannelHandler: ChannelInboundHandler, @unchecked Senda
         }
     }
 
-    /// Called when the channel becomes inactive.
+    /// Called when the channel becomes inactive (connection closed).
     func channelInactive(context: ChannelHandlerContext) {
+        let error = TransportError.connectionClosed
+        onError(error)
         context.fireChannelInactive()
     }
 

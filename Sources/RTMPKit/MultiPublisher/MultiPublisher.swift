@@ -270,6 +270,23 @@ public actor MultiPublisher {
         await updateAndEmitStatistics()
     }
 
+    /// Send raw AMF0 data message payload to all active destinations.
+    ///
+    /// Use this to forward FLV script tags verbatim from an FLV file reader.
+    /// Errors on individual destinations are silently ignored.
+    ///
+    /// - Parameter payload: Raw AMF0-encoded payload bytes.
+    public func sendRawDataMessage(_ payload: [UInt8]) async {
+        await withTaskGroup(of: Void.self) { group in
+            for (id, handle) in handles {
+                guard destinationStates[id] == .streaming else { continue }
+                group.addTask {
+                    try? await handle.publisher.sendDataMessagePayload(payload)
+                }
+            }
+        }
+    }
+
     /// Send stream metadata to all active destinations.
     ///
     /// Encodes as `@setDataFrame`/`onMetaData`. Errors on individual

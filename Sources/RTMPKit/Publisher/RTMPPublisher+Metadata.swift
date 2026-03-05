@@ -72,7 +72,12 @@ extension RTMPPublisher {
     }
 
     /// Sends raw AMF0 payload bytes as an RTMP Data Message (type 18).
-    internal func sendDataMessagePayload(_ payload: [UInt8]) async throws {
+    ///
+    /// Use this to forward FLV script tags (e.g. `@setDataFrame`/`onMetaData`)
+    /// verbatim from an FLV file reader.
+    ///
+    /// - Parameter payload: Raw AMF0-encoded payload bytes.
+    public func sendDataMessagePayload(_ payload: [UInt8]) async throws {
         guard
             session.state == .publishing
                 || session.state == .connected

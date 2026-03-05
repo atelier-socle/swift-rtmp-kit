@@ -343,12 +343,12 @@ struct RTMPChannelHandlerOutgoingTests {
         #expect(collector.receivedError != nil)
     }
 
-    @Test("channelInactive does not trigger onError")
-    func channelInactiveNoError() throws {
+    @Test("channelInactive triggers onError with connectionClosed")
+    func channelInactiveTriggersError() throws {
         let collector = TestCollector()
         let (channel, _) = makeHandler(collector: collector)
         _ = try? channel.finish()
-        #expect(collector.receivedError == nil)
+        #expect(collector.receivedError as? TransportError == .connectionClosed)
     }
 
     @Test("updateChunkSize does not crash")
