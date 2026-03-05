@@ -35,6 +35,7 @@ extension RTMPServer {
         case .connect(let txnID, let props):
             await session.transitionToConnected(appName: props.app)
             try await session.sendConnectResult(transactionID: txnID)
+            recordSessionConnected()
             emitEvent(.sessionConnected(session))
             await delegate?.serverSessionDidConnect(session)
 
@@ -111,6 +112,7 @@ extension RTMPServer {
         _ message: RTMPMessage, session: RTMPServerSession
     ) async {
         await session.recordAudioFrame()
+        totalAudioFramesReceived += 1
         let data = message.payload
         let sessionID = session.id
         let timestamp = message.timestamp
@@ -137,6 +139,7 @@ extension RTMPServer {
         _ message: RTMPMessage, session: RTMPServerSession
     ) async {
         await session.recordVideoFrame()
+        totalVideoFramesReceived += 1
         let data = message.payload
         let isKeyframe = !data.isEmpty && (data[0] & 0xF0) == 0x10
         let sessionID = session.id

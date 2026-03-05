@@ -72,6 +72,12 @@ public actor RTMPPublisher {
     internal var recorder: StreamRecorder?
     internal var recorderEventTask: Task<Void, Never>?
 
+    // MARK: - Metrics Export
+
+    internal var metricsExporter: (any RTMPMetricsExporter)?
+    internal var metricsTask: Task<Void, Never>?
+    internal var metricsLabels: [String: String] = [:]
+
     /// Creates a publisher with the default NIO transport.
     public init() {
         let (stream, continuation) = AsyncStream<RTMPEvent>.makeStream()
@@ -109,6 +115,7 @@ public actor RTMPPublisher {
         abrMonitorTask?.cancel()
         qualityMonitorTask?.cancel()
         recorderEventTask?.cancel()
+        metricsTask?.cancel()
         eventContinuation.finish()
     }
 
@@ -220,6 +227,10 @@ public actor RTMPPublisher {
         recorderEventTask = nil
         _ = try? await recorder?.stop()
         recorder = nil
+        metricsTask?.cancel()
+        metricsTask = nil
+        metricsExporter = nil
+        metricsLabels = [:]
         consecutiveDropCount = 0
         liveVideoBitrate = 3_000_000
 

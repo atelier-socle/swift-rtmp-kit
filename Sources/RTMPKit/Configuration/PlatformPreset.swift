@@ -53,6 +53,23 @@ public enum PlatformPreset: Sendable, Equatable {
     /// Custom platform with default settings.
     case custom
 
+    /// Lowercase platform identifier for metrics and labels.
+    public var platformName: String {
+        switch self {
+        case .twitch: "twitch"
+        case .youtube: "youtube"
+        case .facebook: "facebook"
+        case .kick: "kick"
+        case .instagram: "instagram"
+        case .tiktok: "tiktok"
+        case .twitter: "twitter"
+        case .rumble: "rumble"
+        case .linkedin: "linkedin"
+        case .trovo: "trovo"
+        case .custom: "custom"
+        }
+    }
+
     /// Human-readable platform name.
     public var name: String {
         switch self {

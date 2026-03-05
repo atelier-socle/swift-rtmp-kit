@@ -75,6 +75,20 @@ public struct PublishCommand: AsyncParsableCommand {
     @Flag(name: .long, help: "Suppress progress output")
     public var quiet: Bool = false
 
+    /// Prometheus metrics output file.
+    @Option(
+        name: .long,
+        help: "Write Prometheus metrics to file every 10s"
+    )
+    public var metricsPrometheus: String?
+
+    /// StatsD server (host:port) for metrics push.
+    @Option(
+        name: .long,
+        help: "Push metrics to StatsD (host:port)"
+    )
+    public var metricsStatsd: String?
+
     public init() {}
 
     // MARK: - Validation

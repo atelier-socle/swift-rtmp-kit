@@ -83,6 +83,34 @@ public actor RTMPServer {
     /// DVR recorders attached per stream name.
     var dvrs: [String: RTMPStreamDVR] = [:]
 
+    // MARK: - Metrics Export
+
+    /// Metrics exporter backend.
+    var metricsExporter: (any RTMPMetricsExporter)?
+
+    /// Periodic metrics export task.
+    var metricsTask: Task<Void, Never>?
+
+    /// Labels for metrics export.
+    var metricsLabels: [String: String] = [:]
+
+    // MARK: - Server Counters
+
+    /// Total sessions connected since server start.
+    public internal(set) var totalSessionsConnected: Int = 0
+
+    /// Total sessions rejected since server start.
+    public internal(set) var totalSessionsRejected: Int = 0
+
+    /// Total bytes received across all sessions.
+    public internal(set) var totalBytesReceived: Int = 0
+
+    /// Total video frames received across all sessions.
+    public internal(set) var totalVideoFramesReceived: Int = 0
+
+    /// Total audio frames received across all sessions.
+    public internal(set) var totalAudioFramesReceived: Int = 0
+
     // MARK: - Internal
 
     var sessionTasks: [UUID: Task<Void, Never>] = [:]
@@ -126,6 +154,7 @@ public actor RTMPServer {
 
     deinit {
         acceptTask?.cancel()
+        metricsTask?.cancel()
         for (_, task) in sessionTasks {
             task.cancel()
         }
@@ -258,6 +287,7 @@ public actor RTMPServer {
             }
 
             await session.recordBytesReceived(message.payload.count)
+            totalBytesReceived += message.payload.count
 
             do {
                 try await handleMessage(message, session: session)
