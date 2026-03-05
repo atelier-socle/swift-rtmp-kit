@@ -779,18 +779,11 @@ class MockRTMPServer:
             writer.write_message(3, MSG_AMF0_COMMAND, 0, result)
         elif cmd == 'FCPublish':
             stream_name = values[3] if len(values) > 3 else 'unknown'
-            self.log(f"    -> FCPublish: {stream_name} (ack)", Color.GRAY)
+            self.log(f"    -> FCPublish: {stream_name} (ack — no onFCPublish sent)", Color.GRAY)
             session['stream_name'] = stream_name
-            # Send onFCPublish
-            status = (amf0_encode_string('onFCPublish')
-                      + amf0_encode_number(0)
-                      + amf0_encode_null()
-                      + amf0_encode_object({
-                          'level': 'status',
-                          'code': 'NetStream.Publish.Start',
-                          'description': f'{stream_name} is now published.',
-                      }))
-            writer.write_message(5, MSG_AMF0_COMMAND, 0, status)
+            # NOTE: onFCPublish intentionally NOT sent.
+            # The Swift client does not handle this command and raises unknownCommand.
+            # nginx-rtmp and most production servers do not send onFCPublish either.
         elif cmd == 'FCUnpublish':
             stream_name = values[3] if len(values) > 3 else session.get('stream_name', 'unknown')
             self.log(f"    -> FCUnpublish: {stream_name}", Color.GRAY)
