@@ -7,6 +7,14 @@
     import Glibc
 #endif
 
+// On Linux (Glibc), SOCK_DGRAM / SOCK_STREAM are __socket_type (enum),
+// not Int32 as on Darwin. These helpers normalise across platforms.
+#if canImport(Glibc)
+    private let kSockDgram = Int32(SOCK_DGRAM.rawValue)
+#else
+    private let kSockDgram = SOCK_DGRAM
+#endif
+
 /// Exports RTMPKit metrics to a StatsD server via UDP.
 ///
 /// Supports Etsy StatsD protocol (gauge `|g`, counter `|c`).
@@ -159,7 +167,7 @@ public struct StatsDExporter: RTMPMetricsExporter, Sendable {
     }
 
     private func sendUDP(_ data: String, host: String, port: Int) {
-        let fd = socket(AF_INET, SOCK_DGRAM, 0)
+        let fd = socket(AF_INET, kSockDgram, 0)
         guard fd >= 0 else { return }
         defer { close(fd) }
 
@@ -171,7 +179,7 @@ public struct StatsDExporter: RTMPMetricsExporter, Sendable {
         if inet_pton(AF_INET, host, &addr.sin_addr) != 1 {
             var hints = addrinfo()
             hints.ai_family = AF_INET
-            hints.ai_socktype = SOCK_DGRAM
+            hints.ai_socktype = kSockDgram
             var result: UnsafeMutablePointer<addrinfo>?
             guard getaddrinfo(host, nil, &hints, &result) == 0,
                 let res = result
