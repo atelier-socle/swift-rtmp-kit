@@ -62,6 +62,11 @@ public actor RTMPPublisher {
     internal var consecutiveDropCount: Int = 0
     internal var liveVideoBitrate: Int = 3_000_000
 
+    // MARK: - Quality Scoring
+
+    internal var qualityMonitor: ConnectionQualityMonitor?
+    internal var qualityMonitorTask: Task<Void, Never>?
+
     /// Creates a publisher with the default NIO transport.
     public init() {
         let (stream, continuation) = AsyncStream<RTMPEvent>.makeStream()
@@ -97,6 +102,7 @@ public actor RTMPPublisher {
     deinit {
         messageTask?.cancel()
         abrMonitorTask?.cancel()
+        qualityMonitorTask?.cancel()
         eventContinuation.finish()
     }
 
@@ -169,6 +175,7 @@ public actor RTMPPublisher {
             try await performPublish(streamName: parsed.key)
             transitionState(to: .publishing)
             await startABRMonitorIfNeeded()
+            startQualityMonitorIfNeeded()
             setupMetadataUpdater()
 
             let initialMeta = currentConfiguration?.initialMetadata ?? metadata
@@ -197,6 +204,12 @@ public actor RTMPPublisher {
         abrMonitorTask = nil
         await abrMonitor?.stop()
         abrMonitor = nil
+        qualityMonitorTask?.cancel()
+        qualityMonitorTask = nil
+        if let report = await qualityMonitor?.stop() {
+            emitEvent(.qualityReportGenerated(report))
+        }
+        qualityMonitor = nil
         consecutiveDropCount = 0
         liveVideoBitrate = 3_000_000
 
@@ -258,6 +271,7 @@ public actor RTMPPublisher {
             try await performPublish(streamName: parsed.key)
             transitionState(to: .publishing)
             await startABRMonitorIfNeeded()
+            startQualityMonitorIfNeeded()
             setupMetadataUpdater()
 
             let initialMeta = config.initialMetadata ?? config.metadata
@@ -271,26 +285,6 @@ public actor RTMPPublisher {
             try? await transport.close()
             throw RTMPError.authenticationFailed("\(error)")
         }
-    }
-
-    // MARK: - Bandwidth Probing
-
-    /// Probe the server and return the bandwidth measurement result.
-    ///
-    /// Runs a ``BandwidthProbe`` against the given URL to measure
-    /// available uplink bandwidth before publishing.
-    ///
-    /// - Parameters:
-    ///   - url: The RTMP server URL to probe.
-    ///   - probeConfig: Probe configuration (default: `.standard`).
-    /// - Returns: The probe result with bandwidth and quality measurements.
-    /// - Throws: If the connection or probe fails.
-    public func probeAndSelect(
-        url: String,
-        probeConfig: ProbeConfiguration = .standard
-    ) async throws -> ProbeResult {
-        let probe = BandwidthProbe(configuration: probeConfig)
-        return try await probe.probe(url: url)
     }
 
     // MARK: - Media Sending
@@ -320,6 +314,7 @@ public actor RTMPPublisher {
                     consecutiveDropCount += 1
                     await abrMon.recordDroppedFrame()
                     monitor.recordDroppedFrame()
+                    await recordFrameDropForQuality()
                     return
                 }
             }
@@ -342,6 +337,8 @@ public actor RTMPPublisher {
         if let abrMon = abrMonitor {
             await abrMon.recordBytesSent(tagBody.count, pendingBytes: 0)
         }
+        await recordBytesForQuality(tagBody.count)
+        await recordSentFrameForQuality()
     }
 
     /// Send an audio frame.
@@ -364,6 +361,7 @@ public actor RTMPPublisher {
         if let abrMon = abrMonitor {
             await abrMon.recordBytesSent(tagBody.count, pendingBytes: 0)
         }
+        await recordBytesForQuality(tagBody.count)
     }
 
     /// Send video decoder configuration (sequence header).

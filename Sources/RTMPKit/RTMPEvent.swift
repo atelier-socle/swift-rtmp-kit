@@ -37,4 +37,13 @@ public enum RTMPEvent: Sendable {
     /// Authentication failed — either token expired, challenge response rejected,
     /// or simple/token auth credentials were refused.
     case authenticationFailed(reason: String)
+
+    /// A connection quality score was computed.
+    case qualityScoreUpdated(ConnectionQualityScore)
+
+    /// A quality dimension dropped below the warning threshold (0.40).
+    case qualityWarning(dimension: QualityDimension, score: Double)
+
+    /// A quality report was generated (emitted on disconnect).
+    case qualityReportGenerated(QualityReport)
 }
