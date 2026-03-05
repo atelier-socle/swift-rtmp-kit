@@ -5,7 +5,7 @@ import Testing
 
 @testable import RTMPKit
 
-@Suite("ChunkError — Description Coverage")
+@Suite("ChunkError — Error Descriptions")
 struct ChunkErrorDescriptionCoverageTests {
 
     @Test("invalidChunkStreamID description")
@@ -35,7 +35,7 @@ struct ChunkErrorDescriptionCoverageTests {
     }
 }
 
-@Suite("ChunkHeader — Extended Timestamp Parsing Coverage")
+@Suite("ChunkHeader — Extended Timestamp Parsing")
 struct ChunkHeaderExtTimestampTests {
 
     @Test("Fmt 1 with extended timestamp parses correctly")

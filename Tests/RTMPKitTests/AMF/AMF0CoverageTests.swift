@@ -5,7 +5,7 @@ import Testing
 
 @testable import RTMPKit
 
-@Suite("AMF0Decoder — Error Coverage")
+@Suite("AMF0Decoder — Error Paths")
 struct AMF0DecoderErrorCoverageTests {
 
     @Test("maxDepthExceeded on deeply nested object")
@@ -112,7 +112,7 @@ struct AMF0DecoderErrorCoverageTests {
     }
 }
 
-@Suite("AMF0Error — Description Coverage")
+@Suite("AMF0Error — Error Descriptions")
 struct AMF0ErrorDescriptionCoverageTests {
 
     @Test("invalidUTF8String description")

@@ -5,7 +5,7 @@ import Testing
 
 @testable import RTMPKit
 
-@Suite("NIOTransport — Internal Method Coverage")
+@Suite("NIOTransport — Internal Methods")
 struct NIOTransportInternalCoverageTests {
 
     @Test("enqueueMessage buffers messages")
@@ -81,7 +81,7 @@ struct NIOTransportInternalCoverageTests {
     }
 }
 
-@Suite("NIOTransport — Error Paths Coverage")
+@Suite("NIOTransport — Error Paths")
 struct NIOTransportErrorPathsCoverageTests {
 
     @Test("close on already disconnected is no-op")

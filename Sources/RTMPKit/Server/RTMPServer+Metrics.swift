@@ -17,10 +17,16 @@ extension RTMPServer {
         _ exporter: any RTMPMetricsExporter,
         interval: Double = 10.0,
         labels: [String: String] = [:]
-    ) {
+    ) async {
         metricsExporter = exporter
         metricsLabels = labels
         metricsTask?.cancel()
+
+        // First export fires inline — no Task scheduling delay.
+        let stats = await metricsSnapshot()
+        await exporter.export(stats, labels: labels)
+
+        // Subsequent exports via periodic timer.
         metricsTask = Task { [weak self] in
             let intervalNs = UInt64(interval * 1_000_000_000)
             while !Task.isCancelled {

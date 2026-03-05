@@ -5,7 +5,7 @@ import Testing
 
 @testable import RTMPKit
 
-@Suite("ConnectionMonitor — Pong Coverage")
+@Suite("ConnectionMonitor — Pong Handling")
 struct ConnectionMonitorPongCoverageTests {
 
     @Test("recordPongReceived without currentTime clears ping")

@@ -6,7 +6,7 @@ import Testing
 
 @testable import RTMPKitCommands
 
-@Suite("ProgressDisplay — Instance Method Coverage")
+@Suite("ProgressDisplay — Instance Methods")
 struct ProgressDisplayMethodTests {
 
     @Test("init creates instance")

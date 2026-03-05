@@ -5,7 +5,7 @@ import Testing
 
 @testable import RTMPKit
 
-@Suite("RTMPCommand — Decode Error Coverage")
+@Suite("RTMPCommand — Decode Error Paths")
 struct RTMPCommandDecodeErrorCoverageTests {
 
     @Test("Missing transaction ID throws")
@@ -83,7 +83,7 @@ struct RTMPCommandDecodeErrorCoverageTests {
     }
 }
 
-@Suite("RTMPDataMessage — Decode Error Coverage")
+@Suite("RTMPDataMessage — Decode Error Paths")
 struct RTMPDataMessageDecodeErrorCoverageTests {
 
     @Test("setDataFrame without metadata throws")
