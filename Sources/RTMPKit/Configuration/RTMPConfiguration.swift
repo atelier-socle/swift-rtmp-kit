@@ -201,4 +201,90 @@ public struct RTMPConfiguration: Sendable, Equatable {
         config.preset = .kick
         return config
     }
+
+    /// Create an Instagram Live configuration.
+    ///
+    /// - Parameter streamKey: Your Instagram stream key.
+    /// - Returns: A configured ``RTMPConfiguration`` for Instagram Live.
+    public static func instagram(streamKey: String) -> RTMPConfiguration {
+        var config = RTMPConfiguration(
+            url: "rtmps://live-upload.instagram.com:443/rtmp/",
+            streamKey: streamKey
+        )
+        config.enhancedRTMP = false
+        config.preset = .instagram
+        return config
+    }
+
+    /// Create a TikTok Live configuration.
+    ///
+    /// - Parameter streamKey: Your TikTok stream key.
+    /// - Returns: A configured ``RTMPConfiguration`` for TikTok Live.
+    public static func tiktok(streamKey: String) -> RTMPConfiguration {
+        var config = RTMPConfiguration(
+            url: "rtmps://push.tiktok.com/rtmp/",
+            streamKey: streamKey
+        )
+        config.enhancedRTMP = false
+        config.preset = .tiktok
+        return config
+    }
+
+    /// Create an X/Twitter Live configuration.
+    ///
+    /// Uses Periscope infrastructure for RTMPS ingest.
+    ///
+    /// - Parameter streamKey: Your X/Twitter stream key.
+    /// - Returns: A configured ``RTMPConfiguration`` for X/Twitter Live.
+    public static func twitter(streamKey: String) -> RTMPConfiguration {
+        var config = RTMPConfiguration(
+            url: "rtmps://prod-rtmp-publish.periscope.tv:443/",
+            streamKey: streamKey
+        )
+        config.enhancedRTMP = false
+        config.preset = .twitter
+        return config
+    }
+
+    /// Create a Rumble configuration.
+    ///
+    /// - Parameter streamKey: Your Rumble stream key.
+    /// - Returns: A configured ``RTMPConfiguration`` for Rumble.
+    public static func rumble(streamKey: String) -> RTMPConfiguration {
+        var config = RTMPConfiguration(
+            url: "rtmp://publish.rumble.com/live/",
+            streamKey: streamKey
+        )
+        config.enhancedRTMP = false
+        config.preset = .rumble
+        return config
+    }
+
+    /// Create a LinkedIn Live configuration.
+    ///
+    /// - Parameter streamKey: Your LinkedIn stream key (generated via LinkedIn API).
+    /// - Returns: A configured ``RTMPConfiguration`` for LinkedIn Live.
+    public static func linkedin(streamKey: String) -> RTMPConfiguration {
+        var config = RTMPConfiguration(
+            url: "rtmps://livein.linkedin.com:443/live/",
+            streamKey: streamKey
+        )
+        config.enhancedRTMP = false
+        config.preset = .linkedin
+        return config
+    }
+
+    /// Create a Trovo configuration.
+    ///
+    /// - Parameter streamKey: Your Trovo stream key.
+    /// - Returns: A configured ``RTMPConfiguration`` for Trovo.
+    public static func trovo(streamKey: String) -> RTMPConfiguration {
+        var config = RTMPConfiguration(
+            url: "rtmp://livepush.trovo.live/live/",
+            streamKey: streamKey
+        )
+        config.enhancedRTMP = false
+        config.preset = .trovo
+        return config
+    }
 }
