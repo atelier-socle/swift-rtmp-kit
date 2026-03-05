@@ -44,6 +44,27 @@ public actor MockTransport: RTMPTransportProtocol {
     /// Creates a mock transport.
     public init() {}
 
+    /// Whether to suspend indefinitely (instead of throwing) after
+    /// all scripted messages have been consumed.
+    public var suspendAfterMessages = false
+
+    /// Creates a mock transport pre-loaded with scripted messages.
+    ///
+    /// - Parameters:
+    ///   - messages: Messages to return from receive().
+    ///   - suspendAfterMessages: If true, suspends instead of throwing
+    ///     after all messages are consumed.
+    ///   - connected: If true, starts in connected state (for server-side use).
+    public init(
+        messages: [RTMPMessage],
+        suspendAfterMessages: Bool = false,
+        connected: Bool = false
+    ) {
+        self.scriptedMessages = messages
+        self.suspendAfterMessages = suspendAfterMessages
+        self.didConnect = connected
+    }
+
     /// Simulates connecting to a server.
     public func connect(host: String, port: Int, useTLS: Bool) async throws {
         if let error = nextError {
@@ -78,6 +99,11 @@ public actor MockTransport: RTMPTransportProtocol {
             throw TransportError.notConnected
         }
         guard messageIndex < scriptedMessages.count else {
+            if suspendAfterMessages {
+                // Suspend indefinitely until task is cancelled
+                try await Task.sleep(for: .seconds(3600))
+                throw TransportError.connectionClosed
+            }
             throw TransportError.connectionClosed
         }
         let message = scriptedMessages[messageIndex]
