@@ -30,4 +30,11 @@ public enum RTMPEvent: Sendable {
 
     /// Network condition snapshot from the adaptive bitrate monitor.
     case networkSnapshot(NetworkSnapshot)
+
+    /// The server issued an authentication challenge (Adobe auth).
+    case authenticationRequired
+
+    /// Authentication failed — either token expired, challenge response rejected,
+    /// or simple/token auth credentials were refused.
+    case authenticationFailed(reason: String)
 }

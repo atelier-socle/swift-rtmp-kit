@@ -80,6 +80,12 @@ public struct RTMPConfiguration: Sendable, Equatable {
     /// connect command includes `objectEncoding: 3.0`.
     public var objectEncoding: ObjectEncoding
 
+    /// Authentication mechanism (default: ``RTMPAuthentication/none``).
+    ///
+    /// Supports Adobe challenge/response, simple query-string credentials,
+    /// and token-based authentication.
+    public var authentication: RTMPAuthentication
+
     /// Frame dropping strategy used when congestion is detected (default: ``FrameDroppingStrategy/default``).
     ///
     /// Controls which frames are dropped and in what order during
@@ -120,6 +126,7 @@ public struct RTMPConfiguration: Sendable, Equatable {
         self.flashVersion = flashVersion
         self.transportConfiguration = transportConfiguration
         self.objectEncoding = .amf0
+        self.authentication = .none
         self.adaptiveBitrate = adaptiveBitrate
         self.frameDroppingStrategy = frameDroppingStrategy
     }

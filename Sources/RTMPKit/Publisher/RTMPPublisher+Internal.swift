@@ -3,6 +3,11 @@
 
 import Dispatch
 
+/// Internal error used to signal an Adobe auth retry is needed.
+struct AdobeAuthRetryError: Error {
+    let authQuery: String
+}
+
 // MARK: - Setup Sequence
 
 extension RTMPPublisher {
@@ -117,6 +122,22 @@ extension RTMPPublisher {
                         transactionID: transactionID
                     )
                     let status = extractStatusInfo(info)
+
+                    // Adobe challenge/response: attempt auth retry
+                    if case .adobeChallenge(let user, let pass) = currentConfiguration?.authentication,
+                        !hasAttemptedAdobeAuth,
+                        let params = AdobeChallengeAuth.parseChallenge(from: status.description)
+                    {
+                        hasAttemptedAdobeAuth = true
+                        emitEvent(.authenticationRequired)
+                        let clientChallenge = AdobeChallengeAuth.generateClientChallenge()
+                        let authQuery = AdobeChallengeAuth.computeResponse(
+                            username: user, password: pass,
+                            challenge: params, clientChallenge: clientChallenge
+                        )
+                        throw AdobeAuthRetryError(authQuery: authQuery)
+                    }
+
                     throw RTMPError.connectRejected(
                         code: status.code,
                         description: status.description
@@ -470,6 +491,21 @@ extension RTMPPublisher {
                     result.negotiatedCodecs = codecs
                 }
             }
+        }
+    }
+
+    internal func buildConnectionURL(_ configuration: RTMPConfiguration) -> String {
+        switch configuration.authentication {
+        case .none:
+            return configuration.url
+        case .simple(let username, let password):
+            return SimpleAuth.buildURL(
+                base: configuration.url, username: username, password: password
+            )
+        case .token(let token, _):
+            return TokenAuth.buildURL(base: configuration.url, token: token)
+        case .adobeChallenge:
+            return configuration.url
         }
     }
 

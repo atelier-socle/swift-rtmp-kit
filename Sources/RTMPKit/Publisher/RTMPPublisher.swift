@@ -53,6 +53,7 @@ public actor RTMPPublisher {
     // MARK: - Metadata
 
     internal var metadataUpdater: MetadataUpdater?
+    internal var hasAttemptedAdobeAuth = false
 
     // MARK: - Adaptive Bitrate
 
@@ -111,8 +112,20 @@ public actor RTMPPublisher {
     public func publish(configuration: RTMPConfiguration) async throws {
         currentConfiguration = configuration
         liveVideoBitrate = 3_000_000
+        hasAttemptedAdobeAuth = false
+
+        // Check token expiry before connecting
+        if case .token(_, let expiry) = configuration.authentication {
+            if TokenAuth.isExpired(expiry: expiry) {
+                emitEvent(.authenticationFailed(reason: "Token expired"))
+                transitionState(to: .failed(.tokenExpired))
+                throw RTMPError.tokenExpired
+            }
+        }
+
+        let connectionURL = buildConnectionURL(configuration)
         try await publish(
-            url: configuration.url,
+            url: connectionURL,
             streamKey: configuration.streamKey,
             chunkSize: configuration.chunkSize,
             metadata: configuration.metadata,
@@ -163,6 +176,11 @@ public actor RTMPPublisher {
                 try await metadataUpdater?.updateStreamInfo(initialMeta)
             }
             startMessageLoop()
+        } catch let retryError as AdobeAuthRetryError {
+            try? await transport.close()
+            try await retryWithAdobeAuth(
+                retryError.authQuery, originalURL: url
+            )
         } catch {
             transitionState(to: .failed(mapError(error)))
             try? await transport.close()
@@ -204,6 +222,55 @@ public actor RTMPPublisher {
         monitor.reset()
         serverInfo = ServerInfo()
         currentConfiguration = nil
+        hasAttemptedAdobeAuth = false
+    }
+
+    // MARK: - Adobe Auth Retry
+
+    private func retryWithAdobeAuth(
+        _ authQuery: String, originalURL: String
+    ) async throws {
+        guard let config = currentConfiguration else {
+            throw RTMPError.authenticationFailed("No configuration")
+        }
+        connection.reset()
+        disassembler.reset()
+        session.reset()
+
+        let separator = originalURL.contains("?") ? "&" : "?"
+        let authURL = "\(originalURL)\(separator)\(authQuery)"
+
+        do {
+            let parsed = try StreamKey(url: authURL, streamKey: config.streamKey)
+            transitionState(to: .connecting)
+            try await transport.connect(
+                host: parsed.host, port: parsed.port, useTLS: parsed.useTLS
+            )
+            monitor.markConnectionStart(at: monotonicNow())
+            transitionState(to: .handshaking)
+            try await performRTMPConnect(
+                streamKey: parsed, enhancedRTMP: config.enhancedRTMP,
+                flashVersion: config.flashVersion
+            )
+            try await sendSetChunkSize(config.chunkSize)
+            transitionState(to: .connected)
+            try await performCreateStream(streamName: parsed.key)
+            try await performPublish(streamName: parsed.key)
+            transitionState(to: .publishing)
+            await startABRMonitorIfNeeded()
+            setupMetadataUpdater()
+
+            let initialMeta = config.initialMetadata ?? config.metadata
+            if let initialMeta {
+                try await metadataUpdater?.updateStreamInfo(initialMeta)
+            }
+            startMessageLoop()
+        } catch {
+            emitEvent(.authenticationFailed(reason: "\(error)"))
+            transitionState(to: .failed(.authenticationFailed("\(error)")))
+            try? await transport.close()
+            throw RTMPError.authenticationFailed("\(error)")
+        }
     }
 
     // MARK: - Media Sending

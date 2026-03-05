@@ -75,6 +75,14 @@ public enum RTMPError: Error, Sendable, Equatable {
     /// Reconnection attempts exhausted.
     case reconnectExhausted(attempts: Int)
 
+    // MARK: - Authentication
+
+    /// Authentication failed.
+    case authenticationFailed(String)
+
+    /// The authentication token has expired.
+    case tokenExpired
+
     // MARK: - URL
 
     /// The RTMP URL could not be parsed.
@@ -133,6 +141,10 @@ extension RTMPError: CustomStringConvertible {
             return
                 "Reconnection exhausted after "
                 + "\(attempts) attempts"
+        case .authenticationFailed(let reason):
+            return "Authentication failed: \(reason)"
+        case .tokenExpired:
+            return "Authentication token expired"
         case .invalidURL(let url):
             return "Invalid RTMP URL: \(url)"
         }
