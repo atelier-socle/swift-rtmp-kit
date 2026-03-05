@@ -67,6 +67,11 @@ public actor RTMPPublisher {
     internal var qualityMonitor: ConnectionQualityMonitor?
     internal var qualityMonitorTask: Task<Void, Never>?
 
+    // MARK: - Recording
+
+    internal var recorder: StreamRecorder?
+    internal var recorderEventTask: Task<Void, Never>?
+
     /// Creates a publisher with the default NIO transport.
     public init() {
         let (stream, continuation) = AsyncStream<RTMPEvent>.makeStream()
@@ -103,6 +108,7 @@ public actor RTMPPublisher {
         messageTask?.cancel()
         abrMonitorTask?.cancel()
         qualityMonitorTask?.cancel()
+        recorderEventTask?.cancel()
         eventContinuation.finish()
     }
 
@@ -210,6 +216,10 @@ public actor RTMPPublisher {
             emitEvent(.qualityReportGenerated(report))
         }
         qualityMonitor = nil
+        recorderEventTask?.cancel()
+        recorderEventTask = nil
+        _ = try? await recorder?.stop()
+        recorder = nil
         consecutiveDropCount = 0
         liveVideoBitrate = 3_000_000
 
@@ -236,55 +246,6 @@ public actor RTMPPublisher {
         serverInfo = ServerInfo()
         currentConfiguration = nil
         hasAttemptedAdobeAuth = false
-    }
-
-    // MARK: - Adobe Auth Retry
-
-    private func retryWithAdobeAuth(
-        _ authQuery: String, originalURL: String
-    ) async throws {
-        guard let config = currentConfiguration else {
-            throw RTMPError.authenticationFailed("No configuration")
-        }
-        connection.reset()
-        disassembler.reset()
-        session.reset()
-
-        let separator = originalURL.contains("?") ? "&" : "?"
-        let authURL = "\(originalURL)\(separator)\(authQuery)"
-
-        do {
-            let parsed = try StreamKey(url: authURL, streamKey: config.streamKey)
-            transitionState(to: .connecting)
-            try await transport.connect(
-                host: parsed.host, port: parsed.port, useTLS: parsed.useTLS
-            )
-            monitor.markConnectionStart(at: monotonicNow())
-            transitionState(to: .handshaking)
-            try await performRTMPConnect(
-                streamKey: parsed, enhancedRTMP: config.enhancedRTMP,
-                flashVersion: config.flashVersion
-            )
-            try await sendSetChunkSize(config.chunkSize)
-            transitionState(to: .connected)
-            try await performCreateStream(streamName: parsed.key)
-            try await performPublish(streamName: parsed.key)
-            transitionState(to: .publishing)
-            await startABRMonitorIfNeeded()
-            startQualityMonitorIfNeeded()
-            setupMetadataUpdater()
-
-            let initialMeta = config.initialMetadata ?? config.metadata
-            if let initialMeta {
-                try await metadataUpdater?.updateStreamInfo(initialMeta)
-            }
-            startMessageLoop()
-        } catch {
-            emitEvent(.authenticationFailed(reason: "\(error)"))
-            transitionState(to: .failed(.authenticationFailed("\(error)")))
-            try? await transport.close()
-            throw RTMPError.authenticationFailed("\(error)")
-        }
     }
 
     // MARK: - Media Sending
@@ -339,6 +300,7 @@ public actor RTMPPublisher {
         }
         await recordBytesForQuality(tagBody.count)
         await recordSentFrameForQuality()
+        await recordVideoFrame(data, timestamp: timestamp, isKeyframe: isKeyframe)
     }
 
     /// Send an audio frame.
@@ -362,6 +324,7 @@ public actor RTMPPublisher {
             await abrMon.recordBytesSent(tagBody.count, pendingBytes: 0)
         }
         await recordBytesForQuality(tagBody.count)
+        await recordAudioFrame(data, timestamp: timestamp)
     }
 
     /// Send video decoder configuration (sequence header).

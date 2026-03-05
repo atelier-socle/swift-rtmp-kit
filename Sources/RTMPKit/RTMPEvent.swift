@@ -46,4 +46,7 @@ public enum RTMPEvent: Sendable {
 
     /// A quality report was generated (emitted on disconnect).
     case qualityReportGenerated(QualityReport)
+
+    /// A recording event occurred.
+    case recordingEvent(RecordingEvent)
 }

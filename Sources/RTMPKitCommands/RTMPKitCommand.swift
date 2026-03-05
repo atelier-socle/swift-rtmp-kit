@@ -18,7 +18,8 @@ public struct RTMPKitCommand: AsyncParsableCommand {
             PublishCommand.self,
             TestConnectionCommand.self,
             InfoCommand.self,
-            ProbeCommand.self
+            ProbeCommand.self,
+            RecordCommand.self
         ]
     )
 
