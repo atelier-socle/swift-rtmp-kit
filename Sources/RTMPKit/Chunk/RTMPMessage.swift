@@ -29,6 +29,10 @@ public struct RTMPMessage: Sendable, Equatable {
     public static let typeIDVideo: UInt8 = 9
     /// AMF0 Data Message (type 18).
     public static let typeIDDataAMF0: UInt8 = 18
+    /// AMF3 Data Message (type 15).
+    public static let typeIDDataAMF3: UInt8 = 15
+    /// AMF3 Command Message (type 17).
+    public static let typeIDCommandAMF3: UInt8 = 17
     /// AMF0 Command Message (type 20).
     public static let typeIDCommandAMF0: UInt8 = 20
 

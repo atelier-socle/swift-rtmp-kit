@@ -74,6 +74,12 @@ public struct RTMPConfiguration: Sendable, Equatable {
     /// conditions and adjusts the video bitrate automatically.
     public var adaptiveBitrate: AdaptiveBitratePolicy
 
+    /// AMF object encoding version (default: ``ObjectEncoding/amf0``).
+    ///
+    /// When set to `.amf3`, RTMP commands use type-17 messages and the
+    /// connect command includes `objectEncoding: 3.0`.
+    public var objectEncoding: ObjectEncoding
+
     /// Frame dropping strategy used when congestion is detected (default: ``FrameDroppingStrategy/default``).
     ///
     /// Controls which frames are dropped and in what order during
@@ -113,6 +119,7 @@ public struct RTMPConfiguration: Sendable, Equatable {
         self.initialMetadata = nil
         self.flashVersion = flashVersion
         self.transportConfiguration = transportConfiguration
+        self.objectEncoding = .amf0
         self.adaptiveBitrate = adaptiveBitrate
         self.frameDroppingStrategy = frameDroppingStrategy
     }
