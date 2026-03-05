@@ -110,6 +110,11 @@ public actor RTMPServerSession: Identifiable {
         state = .publishing
     }
 
+    /// Store stream name without changing state (used by FCPublish).
+    func setStreamName(_ name: String) {
+        self.streamName = name
+    }
+
     /// Transition to failed state.
     func transitionToFailed(_ reason: String) {
         state = .failed(reason)

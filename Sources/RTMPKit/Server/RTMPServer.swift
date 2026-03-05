@@ -75,6 +75,14 @@ public actor RTMPServer {
         eventStream
     }
 
+    // MARK: - Stream Management
+
+    /// Relays attached per stream name.
+    var relays: [String: RTMPStreamRelay] = [:]
+
+    /// DVR recorders attached per stream name.
+    var dvrs: [String: RTMPStreamDVR] = [:]
+
     // MARK: - Internal
 
     var sessionTasks: [UUID: Task<Void, Never>] = [:]

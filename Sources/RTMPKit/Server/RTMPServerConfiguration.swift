@@ -24,6 +24,16 @@ public struct RTMPServerConfiguration: Sendable {
     /// Chunk size for outgoing messages. Default: 4096.
     public var chunkSize: Int
 
+    /// Stream key validator. Default: ``AllowAllStreamKeyValidator``.
+    public var streamKeyValidator: any StreamKeyValidator
+
+    /// Whether to automatically start DVR for all ingest streams.
+    /// Default: false.
+    public var autoDVR: Bool
+
+    /// DVR configuration used when ``autoDVR`` is true.
+    public var dvrConfiguration: RecordingConfiguration
+
     /// Creates a server configuration.
     ///
     /// - Parameters:
@@ -33,13 +43,19 @@ public struct RTMPServerConfiguration: Sendable {
     ///   - handshakeTimeout: Handshake timeout in seconds.
     ///   - requireStreamKeyValidation: Whether to validate stream keys via delegate.
     ///   - chunkSize: Chunk size for outgoing messages.
+    ///   - streamKeyValidator: Validator for incoming stream keys.
+    ///   - autoDVR: Whether to auto-record all ingest streams.
+    ///   - dvrConfiguration: Recording config for auto-DVR.
     public init(
         port: Int = 1935,
         host: String = "0.0.0.0",
         maxSessions: Int = 10,
         handshakeTimeout: Double = 10.0,
         requireStreamKeyValidation: Bool = false,
-        chunkSize: Int = 4096
+        chunkSize: Int = 4096,
+        streamKeyValidator: any StreamKeyValidator = AllowAllStreamKeyValidator(),
+        autoDVR: Bool = false,
+        dvrConfiguration: RecordingConfiguration = .default
     ) {
         self.port = port
         self.host = host
@@ -47,6 +63,9 @@ public struct RTMPServerConfiguration: Sendable {
         self.handshakeTimeout = handshakeTimeout
         self.requireStreamKeyValidation = requireStreamKeyValidation
         self.chunkSize = chunkSize
+        self.streamKeyValidator = streamKeyValidator
+        self.autoDVR = autoDVR
+        self.dvrConfiguration = dvrConfiguration
     }
 }
 

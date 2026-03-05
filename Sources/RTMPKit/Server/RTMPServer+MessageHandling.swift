@@ -42,7 +42,7 @@ extension RTMPServer {
             try await session.sendResultAck(transactionID: txnID)
 
         case .fcPublish(let txnID, let name):
-            await session.transitionToPublishing(streamName: name)
+            await session.setStreamName(name)
             try await session.sendOnFCPublish(streamName: name)
             _ = txnID
 
@@ -52,24 +52,7 @@ extension RTMPServer {
             )
 
         case .publish(_, let name, _):
-            let accepted: Bool
-            if let del = delegate {
-                accepted = await del.serverSession(
-                    session, shouldAcceptStream: name
-                )
-            } else {
-                accepted = true
-            }
-
-            if accepted {
-                await session.transitionToPublishing(streamName: name)
-                try await session.sendPublishStart(streamName: name)
-                emitEvent(
-                    .streamStarted(session: session, streamName: name)
-                )
-            } else {
-                try await session.sendPublishBadName(streamName: name)
-            }
+            try await handlePublish(name: name, session: session)
 
         case .fcUnpublish(_, let name):
             try await session.sendOnFCUnpublish(streamName: name)
@@ -89,24 +72,65 @@ extension RTMPServer {
         }
     }
 
+    private func handlePublish(
+        name: String, session: RTMPServerSession
+    ) async throws {
+        let appName = await session.appName ?? ""
+        let keyValid = await configuration.streamKeyValidator.isValid(
+            streamKey: name, app: appName
+        )
+        guard keyValid else {
+            try await session.sendPublishBadName(streamName: name)
+            return
+        }
+
+        let accepted: Bool
+        if let del = delegate {
+            accepted = await del.serverSession(
+                session, shouldAcceptStream: name
+            )
+        } else {
+            accepted = true
+        }
+
+        if accepted {
+            await session.transitionToPublishing(streamName: name)
+            try await session.sendPublishStart(streamName: name)
+            emitEvent(
+                .streamStarted(session: session, streamName: name)
+            )
+            if configuration.autoDVR {
+                await startAutoDVR(forStream: name)
+            }
+        } else {
+            try await session.sendPublishBadName(streamName: name)
+        }
+    }
+
     private func handleAudio(
         _ message: RTMPMessage, session: RTMPServerSession
     ) async {
         await session.recordAudioFrame()
         let data = message.payload
         let sessionID = session.id
+        let timestamp = message.timestamp
         emitEvent(
             .audioFrame(
                 sessionID: sessionID,
                 data: data,
-                timestamp: message.timestamp
+                timestamp: timestamp
             )
         )
         await delegate?.serverSession(
             session,
             didReceiveAudio: data,
-            timestamp: message.timestamp
+            timestamp: timestamp
         )
+        if let streamName = await session.streamName {
+            await forwardAudio(
+                data, timestamp: timestamp, streamName: streamName
+            )
+        }
     }
 
     private func handleVideo(
@@ -116,20 +140,27 @@ extension RTMPServer {
         let data = message.payload
         let isKeyframe = !data.isEmpty && (data[0] & 0xF0) == 0x10
         let sessionID = session.id
+        let timestamp = message.timestamp
         emitEvent(
             .videoFrame(
                 sessionID: sessionID,
                 data: data,
-                timestamp: message.timestamp,
+                timestamp: timestamp,
                 isKeyframe: isKeyframe
             )
         )
         await delegate?.serverSession(
             session,
             didReceiveVideo: data,
-            timestamp: message.timestamp,
+            timestamp: timestamp,
             isKeyframe: isKeyframe
         )
+        if let streamName = await session.streamName {
+            await forwardVideo(
+                data, timestamp: timestamp, isKeyframe: isKeyframe,
+                streamName: streamName
+            )
+        }
     }
 
     private func handleDataMessage(
@@ -176,5 +207,44 @@ extension RTMPServer {
         sessions.removeValue(forKey: sessionID)
         emitEvent(.sessionDisconnected(id: sessionID, reason: reason))
         await delegate?.serverSessionDidDisconnect(session, reason: reason)
+    }
+
+    // MARK: - Relay / DVR Forwarding
+
+    private func forwardVideo(
+        _ data: [UInt8], timestamp: UInt32, isKeyframe: Bool,
+        streamName: String
+    ) async {
+        if let relay = relays[streamName] {
+            await relay.relayVideo(
+                data, timestamp: timestamp, isKeyframe: isKeyframe
+            )
+        }
+        if let dvr = dvrs[streamName] {
+            try? await dvr.recordVideo(
+                data, timestamp: timestamp, isKeyframe: isKeyframe
+            )
+        }
+    }
+
+    private func forwardAudio(
+        _ data: [UInt8], timestamp: UInt32,
+        streamName: String
+    ) async {
+        if let relay = relays[streamName] {
+            await relay.relayAudio(data, timestamp: timestamp)
+        }
+        if let dvr = dvrs[streamName] {
+            try? await dvr.recordAudio(data, timestamp: timestamp)
+        }
+    }
+
+    func startAutoDVR(forStream streamName: String) async {
+        guard dvrs[streamName] == nil else { return }
+        let dvr = RTMPStreamDVR(
+            configuration: configuration.dvrConfiguration
+        )
+        dvrs[streamName] = dvr
+        try? await dvr.start()
     }
 }
