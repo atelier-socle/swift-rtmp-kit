@@ -64,6 +64,7 @@ public struct ChunkAssembler: Sendable {
             }
             internalBuffer.removeFirst(offset)
             if let msg = message {
+                applyInlineChunkSize(msg)
                 messages.append(msg)
             }
         }
@@ -87,6 +88,22 @@ public struct ChunkAssembler: Sendable {
     }
 
     // MARK: - Private
+
+    /// Immediately apply SetChunkSize messages so that subsequent chunks
+    /// in the same `process()` call use the new size.
+    ///
+    /// Without this, a SetChunkSize followed by a large message in the
+    /// same TCP segment causes the assembler to split the next message
+    /// at the old (smaller) chunk boundary, interpreting payload bytes
+    /// as chunk headers.
+    private mutating func applyInlineChunkSize(_ message: RTMPMessage) {
+        guard message.typeID == RTMPMessage.typeIDSetChunkSize else { return }
+        if let ctrl = try? RTMPControlMessage.decode(
+            typeID: message.typeID, payload: message.payload
+        ), case .setChunkSize(let size) = ctrl {
+            chunkSize = size
+        }
+    }
 
     private mutating func processChunk(
         header: ChunkHeader,

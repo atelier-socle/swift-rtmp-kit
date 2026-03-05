@@ -16,7 +16,7 @@ struct PublishCommandParsingTests {
             "--file", "video.flv"
         ])
         #expect(cmd.url == "rtmp://server/app")
-        #expect(cmd.key == "my-key")
+        #expect(cmd.key == ["my-key"])
         #expect(cmd.file == "video.flv")
     }
 
@@ -28,7 +28,7 @@ struct PublishCommandParsingTests {
             "--file", "video.flv"
         ])
         #expect(cmd.preset == "twitch")
-        #expect(cmd.key == "live_key")
+        #expect(cmd.key == ["live_key"])
     }
 
     @Test("parse with --preset youtube")

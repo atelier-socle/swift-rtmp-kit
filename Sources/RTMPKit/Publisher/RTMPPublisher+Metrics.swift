@@ -25,14 +25,25 @@ extension RTMPPublisher {
         metricsTask = Task { [weak self] in
             let intervalNs = UInt64(interval * 1_000_000_000)
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: intervalNs)
-                guard !Task.isCancelled else { return }
                 guard let self else { return }
                 let stats = await self.metricsSnapshot()
                 let exp = await self.metricsExporter
                 let lbl = await self.metricsLabels
                 await exp?.export(stats, labels: lbl)
+                try? await Task.sleep(nanoseconds: intervalNs)
             }
+        }
+    }
+
+    /// Export a final metrics snapshot and flush the exporter.
+    ///
+    /// Call this before `disconnect()` to guarantee at least one
+    /// metrics export, even for short streaming sessions.
+    public func flushMetrics() async {
+        if let exporter = metricsExporter {
+            let stats = await metricsSnapshot()
+            await exporter.export(stats, labels: metricsLabels)
+            await exporter.flush()
         }
     }
 

@@ -43,19 +43,35 @@ extension DestinationArgument: ExpressibleByArgument {
 extension DestinationArgument {
 
     /// Parse a raw RTMP/RTMPS URL argument.
+    ///
+    /// Accepts two formats:
+    /// - `rtmp://host:port/app:streamKey` — URL with embedded key
+    /// - `rtmp://host:port/app` — URL only; key provided via `--key`
+    ///
+    /// The stream key delimiter is the last `:` after the first path
+    /// segment, avoiding confusion with the port colon.
     private static func parseURL(_ argument: String) -> DestinationArgument? {
-        guard let lastColon = argument.lastIndex(of: ":") else { return nil }
-        let colonOffset = argument.distance(
-            from: argument.startIndex, to: lastColon
-        )
-        // Must not be the scheme colon (position 4 for rtmp, 5 for rtmps)
-        guard colonOffset > 7 else { return nil }
-        let url = String(argument[argument.startIndex..<lastColon])
-        let streamKey = String(argument[argument.index(after: lastColon)...])
-        guard !streamKey.isEmpty else { return nil }
+        guard let schemeEnd = argument.range(of: "://") else { return nil }
+        let afterScheme = schemeEnd.upperBound
+        let pathStart = argument[afterScheme...].firstIndex(of: "/") ?? argument.endIndex
+
+        // Look for a stream key colon after the path start
+        let pathPortion = argument[pathStart...]
+        if let lastColon = pathPortion.lastIndex(of: ":") {
+            let url = String(argument[argument.startIndex..<lastColon])
+            let streamKey = String(argument[argument.index(after: lastColon)...])
+            if !streamKey.isEmpty, !url.isEmpty {
+                return DestinationArgument(
+                    configuration: RTMPConfiguration(url: url, streamKey: streamKey),
+                    id: "\(url)/\(streamKey)"
+                )
+            }
+        }
+
+        // No embedded key — accept plain URL; key paired later via --key
         return DestinationArgument(
-            configuration: RTMPConfiguration(url: url, streamKey: streamKey),
-            id: "\(url)/\(streamKey)"
+            configuration: RTMPConfiguration(url: argument, streamKey: ""),
+            id: argument
         )
     }
 

@@ -34,9 +34,9 @@ public struct PublishCommand: AsyncParsableCommand {
     )
     public var preset: String?
 
-    /// Stream key (required with --url or --preset).
-    @Option(name: .long, help: "Stream key")
-    public var key: String?
+    /// Stream key(s). Required with --url or --preset. Repeatable with --dest.
+    @Option(name: .long, help: "Stream key (repeatable for multi-dest)")
+    public var key: [String] = []
 
     /// FLV file to stream.
     @Option(name: .long, help: "Path to FLV file to stream")
@@ -89,6 +89,14 @@ public struct PublishCommand: AsyncParsableCommand {
     )
     public var metricsStatsd: String?
 
+    /// Username for Adobe challenge/response or simple auth.
+    @Option(name: .long, help: "Auth username (Adobe or simple)")
+    public var authUser: String?
+
+    /// Password for Adobe challenge/response or simple auth.
+    @Option(name: .long, help: "Auth password (Adobe or simple)")
+    public var authPass: String?
+
     public init() {}
 
     // MARK: - Validation
@@ -103,7 +111,7 @@ public struct PublishCommand: AsyncParsableCommand {
             )
         }
         if hasURLOrPreset {
-            guard key != nil else {
+            guard !key.isEmpty else {
                 throw ValidationError(
                     "--key is required with --url or --preset"
                 )
@@ -179,9 +187,21 @@ public struct PublishCommand: AsyncParsableCommand {
             )
         }
 
-        for d in dest {
+        for (i, d) in dest.enumerated() {
+            var config = d.configuration
+            var destID = d.id
+            // If dest has no embedded key, pair with --key[i]
+            if config.streamKey.isEmpty, i < key.count {
+                config = RTMPConfiguration(
+                    url: config.url,
+                    streamKey: key[i],
+                    chunkSize: chunkSize,
+                    enhancedRTMP: !noEnhancedRTMP
+                )
+                destID = "\(config.url)/\(key[i])"
+            }
             destinations.append(
-                PublishDestination(id: d.id, configuration: d.configuration)
+                PublishDestination(id: destID, configuration: config)
             )
         }
 
@@ -189,7 +209,7 @@ public struct PublishCommand: AsyncParsableCommand {
     }
 
     func buildConfiguration() throws -> RTMPConfiguration {
-        guard let key else {
+        guard let key = key.first else {
             throw ValidationError(
                 "--key is required with --url or --preset"
             )
@@ -219,12 +239,18 @@ public struct PublishCommand: AsyncParsableCommand {
                 "Either --url or --preset is required"
             )
         }
-        return RTMPConfiguration(
+        var config = RTMPConfiguration(
             url: url,
             streamKey: key,
             chunkSize: chunkSize,
             enhancedRTMP: !noEnhancedRTMP
         )
+        if let authUser, let authPass {
+            config.authentication = .adobeChallenge(
+                username: authUser, password: authPass
+            )
+        }
+        return config
     }
 
     func parseIngestServer() -> TwitchIngestServer? {
@@ -291,10 +317,12 @@ extension PublishCommand {
             )
         } catch let error as RTMPError {
             display.showError(error.description)
+            await publisher.flushMetrics()
             await publisher.disconnect()
             throw ExitCode.failure
         } catch {
             display.showError("\(error)")
+            await publisher.flushMetrics()
             await publisher.disconnect()
             throw ExitCode.failure
         }
@@ -304,6 +332,7 @@ extension PublishCommand {
             display.showSuccess("Streaming complete")
         }
 
+        await publisher.flushMetrics()
         await publisher.disconnect()
     }
 

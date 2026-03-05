@@ -166,7 +166,25 @@ public struct StatsDExporter: RTMPMetricsExporter, Sendable {
         var addr = sockaddr_in()
         addr.sin_family = sa_family_t(AF_INET)
         addr.sin_port = UInt16(port).bigEndian
-        inet_pton(AF_INET, host, &addr.sin_addr)
+
+        // Resolve hostname (inet_pton only handles IP addresses)
+        if inet_pton(AF_INET, host, &addr.sin_addr) != 1 {
+            var hints = addrinfo()
+            hints.ai_family = AF_INET
+            hints.ai_socktype = SOCK_DGRAM
+            var result: UnsafeMutablePointer<addrinfo>?
+            guard getaddrinfo(host, nil, &hints, &result) == 0,
+                let res = result
+            else { return }
+            defer { freeaddrinfo(res) }
+            if let sa4 = res.pointee.ai_addr {
+                sa4.withMemoryRebound(
+                    to: sockaddr_in.self, capacity: 1
+                ) { ptr in
+                    addr.sin_addr = ptr.pointee.sin_addr
+                }
+            }
+        }
 
         let bytes = Array(data.utf8)
         withUnsafePointer(to: &addr) { ptr in

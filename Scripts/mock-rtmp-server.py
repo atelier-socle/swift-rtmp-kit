@@ -395,6 +395,7 @@ class MockRTMPServer:
         self.server_socket = None
         self._sessions_lock = threading.Lock()
         self._active_sessions = 0
+        self._adobe_challenges = {}  # opaque -> (salt, challenge)
         self.stats = {
             'connections': 0,
             'rejected': 0,
@@ -888,6 +889,8 @@ class MockRTMPServer:
                 session['adobe_salt'] = salt
                 session['adobe_challenge'] = challenge
                 opaque = ''.join(f'{b:02x}' for b in os.urandom(4))
+                # Store challenge globally keyed by opaque (client reconnects on new TCP connection)
+                self._adobe_challenges[opaque] = (salt, challenge)
                 desc = (f"[ AccessManager.Reject ] : [ authmod=adobe ] : "
                         f"?reason=needauth&user=&salt={salt}&challenge={challenge}&opaque={opaque}")
                 self.log(f"    -> Adobe challenge issued (salt={salt}, challenge={challenge})", Color.YELLOW)
@@ -903,12 +906,17 @@ class MockRTMPServer:
                 return
 
             elif authmod == 'adobe':
-                # Second connect — validate response
+                # Second connect — validate response (look up challenge by opaque)
                 user     = params.get('user', '')
                 client_challenge = params.get('challenge', '')
                 response = params.get('response', '')
-                salt     = session.get('adobe_salt', '')
-                server_challenge = session.get('adobe_challenge', '')
+                opaque_val = params.get('opaque', '')
+                stored = self._adobe_challenges.get(opaque_val)
+                if stored:
+                    salt, server_challenge = stored
+                else:
+                    salt     = session.get('adobe_salt', '')
+                    server_challenge = session.get('adobe_challenge', '')
                 expected = _compute_adobe_response(
                     user, self.auth_pass, salt, server_challenge, client_challenge
                 )
