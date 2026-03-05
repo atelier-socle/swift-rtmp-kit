@@ -80,8 +80,11 @@ public struct StreamMetadata: Sendable, Equatable {
     /// Video frame rate in fps.
     public var frameRate: Double?
 
-    /// Video codec ID (7 = AVC/H.264).
+    /// Video codec ID (7 = AVC/H.264, 12 = HEVC).
     public var videoCodecID: Double?
+
+    /// Video bitrate in bps. Nil if unknown.
+    public var videoBitrate: Int?
 
     /// Audio data rate in kbps.
     public var audioDataRate: Double?
@@ -98,11 +101,25 @@ public struct StreamMetadata: Sendable, Equatable {
     /// Audio codec ID (10 = AAC).
     public var audioCodecID: Double?
 
+    /// Number of audio channels (e.g. 1 = mono, 2 = stereo).
+    public var audioChannels: Int?
+
+    /// Audio bitrate in bps. Nil if unknown.
+    public var audioBitrate: Int?
+
+    /// Stream duration in seconds. 0 for live streams.
+    public var duration: Double?
+
     /// Encoder name string.
     public var encoder: String?
 
+    /// Additional arbitrary key-value pairs to include in the metadata object.
+    public var customFields: [String: AMF0Value]
+
     /// Creates stream metadata with all fields nil.
-    public init() {}
+    public init() {
+        customFields = [:]
+    }
 
     /// Convert to AMF0 ecmaArray value.
     ///
@@ -111,18 +128,32 @@ public struct StreamMetadata: Sendable, Equatable {
     /// - Returns: An AMF0 ecmaArray with the metadata key-value pairs.
     public func toAMF0() -> AMF0Value {
         var pairs: [(String, AMF0Value)] = []
+        if let v = duration { pairs.append(("duration", .number(v))) }
         appendNumber("width", width, to: &pairs)
         appendNumber("height", height, to: &pairs)
         appendNumber("videodatarate", videoDataRate, to: &pairs)
+        if let v = videoBitrate { pairs.append(("videoBitrate", .number(Double(v)))) }
         appendNumber("framerate", frameRate, to: &pairs)
         appendNumber("videocodecid", videoCodecID, to: &pairs)
         appendNumber("audiodatarate", audioDataRate, to: &pairs)
+        if let v = audioBitrate { pairs.append(("audioBitrate", .number(Double(v)))) }
         appendNumber("audiosamplerate", audioSampleRate, to: &pairs)
         appendNumber("audiosamplesize", audioSampleSize, to: &pairs)
         if let v = isStereo { pairs.append(("stereo", .boolean(v))) }
         appendNumber("audiocodecid", audioCodecID, to: &pairs)
+        if let v = audioChannels { pairs.append(("audioChannels", .number(Double(v)))) }
         if let v = encoder { pairs.append(("encoder", .string(v))) }
+        for (key, value) in customFields {
+            pairs.append((key, value))
+        }
         return .ecmaArray(pairs)
+    }
+
+    /// Encodes this metadata as an AMF0 Object suitable for `@setDataFrame`/`onMetaData`.
+    ///
+    /// Alias for ``toAMF0()`` — returns the same ecmaArray encoding.
+    public func toAMF0Object() -> AMF0Value {
+        toAMF0()
     }
 
     private func appendNumber(
@@ -155,11 +186,15 @@ public struct StreamMetadata: Sendable, Equatable {
         meta.videoDataRate = dict["videodatarate"]?.numberValue
         meta.frameRate = dict["framerate"]?.numberValue
         meta.videoCodecID = dict["videocodecid"]?.numberValue
+        meta.videoBitrate = dict["videoBitrate"]?.numberValue.map { Int($0) }
         meta.audioDataRate = dict["audiodatarate"]?.numberValue
         meta.audioSampleRate = dict["audiosamplerate"]?.numberValue
         meta.audioSampleSize = dict["audiosamplesize"]?.numberValue
         meta.isStereo = dict["stereo"]?.booleanValue
         meta.audioCodecID = dict["audiocodecid"]?.numberValue
+        meta.audioChannels = dict["audioChannels"]?.numberValue.map { Int($0) }
+        meta.audioBitrate = dict["audioBitrate"]?.numberValue.map { Int($0) }
+        meta.duration = dict["duration"]?.numberValue
         meta.encoder = dict["encoder"]?.stringValue
         return meta
     }

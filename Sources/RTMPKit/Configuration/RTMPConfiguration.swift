@@ -53,6 +53,13 @@ public struct RTMPConfiguration: Sendable, Equatable {
     /// Optional stream metadata to send after publish starts.
     public var metadata: StreamMetadata?
 
+    /// Optional initial stream metadata sent automatically after publish starts.
+    ///
+    /// When set, this metadata is sent as an `@setDataFrame`/`onMetaData` message
+    /// immediately after the publish command is acknowledged. Takes precedence
+    /// over ``metadata`` for the initial send.
+    public var initialMetadata: StreamMetadata?
+
     /// Flash version string for the connect command.
     ///
     /// Uses preset default if not overridden.
@@ -103,6 +110,7 @@ public struct RTMPConfiguration: Sendable, Equatable {
         self.reconnectPolicy = reconnectPolicy
         self.preset = nil
         self.metadata = nil
+        self.initialMetadata = nil
         self.flashVersion = flashVersion
         self.transportConfiguration = transportConfiguration
         self.adaptiveBitrate = adaptiveBitrate

@@ -270,7 +270,10 @@ public actor MultiPublisher {
         await updateAndEmitStatistics()
     }
 
-    /// Send metadata to all active destinations.
+    /// Send stream metadata to all active destinations.
+    ///
+    /// Encodes as `@setDataFrame`/`onMetaData`. Errors on individual
+    /// destinations are silently ignored.
     ///
     /// - Parameter metadata: The stream metadata to send.
     public func sendMetadata(_ metadata: StreamMetadata) async {
@@ -278,10 +281,57 @@ public actor MultiPublisher {
             for (id, handle) in handles {
                 guard destinationStates[id] == .streaming else { continue }
                 group.addTask {
-                    try? await handle.publisher.updateMetadata(metadata)
+                    try? await handle.publisher.updateStreamInfo(metadata)
                 }
             }
         }
+    }
+
+    /// Send timed metadata to all active destinations.
+    ///
+    /// Encodes as `onTextData`, `onCuePoint`, or `onCaptionInfo`
+    /// depending on the ``TimedMetadata`` variant. Errors on individual
+    /// destinations are silently ignored.
+    ///
+    /// - Parameter timedMetadata: The timed metadata to send.
+    public func send(_ timedMetadata: TimedMetadata) async {
+        await withTaskGroup(of: Void.self) { group in
+            for (id, handle) in handles {
+                guard destinationStates[id] == .streaming else { continue }
+                group.addTask {
+                    try? await handle.publisher.send(timedMetadata)
+                }
+            }
+        }
+    }
+
+    /// Send text data to all active destinations.
+    ///
+    /// Convenience for ``send(_:)`` with ``TimedMetadata/text(_:timestamp:)``.
+    ///
+    /// - Parameters:
+    ///   - text: The text content.
+    ///   - timestamp: Stream timestamp in milliseconds.
+    public func sendText(_ text: String, timestamp: Double) async {
+        await send(.text(text, timestamp: timestamp))
+    }
+
+    /// Send a cue point to all active destinations.
+    ///
+    /// Convenience for ``send(_:)`` with ``TimedMetadata/cuePoint(_:)``.
+    ///
+    /// - Parameter cuePoint: The cue point to send.
+    public func sendCuePoint(_ cuePoint: CuePoint) async {
+        await send(.cuePoint(cuePoint))
+    }
+
+    /// Send caption data to all active destinations.
+    ///
+    /// Convenience for ``send(_:)`` with ``TimedMetadata/caption(_:)``.
+    ///
+    /// - Parameter caption: The caption data to send.
+    public func sendCaption(_ caption: CaptionData) async {
+        await send(.caption(caption))
     }
 
     // MARK: - Query

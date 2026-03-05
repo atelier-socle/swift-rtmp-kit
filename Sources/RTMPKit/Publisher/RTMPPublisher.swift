@@ -50,6 +50,10 @@ public actor RTMPPublisher {
     /// Server information from the connect response.
     public internal(set) var serverInfo = ServerInfo()
 
+    // MARK: - Metadata
+
+    internal var metadataUpdater: MetadataUpdater?
+
     // MARK: - Adaptive Bitrate
 
     internal var abrMonitor: NetworkConditionMonitor?
@@ -152,9 +156,11 @@ public actor RTMPPublisher {
             try await performPublish(streamName: parsed.key)
             transitionState(to: .publishing)
             await startABRMonitorIfNeeded()
+            setupMetadataUpdater()
 
-            if let metadata {
-                try await updateMetadata(metadata)
+            let initialMeta = currentConfiguration?.initialMetadata ?? metadata
+            if let initialMeta {
+                try await metadataUpdater?.updateStreamInfo(initialMeta)
             }
             startMessageLoop()
         } catch {
@@ -168,6 +174,7 @@ public actor RTMPPublisher {
     public func disconnect() async {
         messageTask?.cancel()
         messageTask = nil
+        metadataUpdater = nil
         abrMonitorTask?.cancel()
         abrMonitorTask = nil
         await abrMonitor?.stop()
