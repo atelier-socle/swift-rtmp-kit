@@ -7,7 +7,7 @@ import Dispatch
 ///
 /// The monitor consumes raw measurements (RTT, bytes sent, frame events)
 /// from the publisher and produces ``BitrateRecommendation`` values via
-/// an ``AsyncStream``. It implements EWMA bandwidth estimation,
+/// an `AsyncStream`. It implements EWMA bandwidth estimation,
 /// RTT baseline tracking, and congestion-aware step-down/step-up logic.
 public actor NetworkConditionMonitor {
 

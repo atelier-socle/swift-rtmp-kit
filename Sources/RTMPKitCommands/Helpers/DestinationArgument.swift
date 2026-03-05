@@ -4,13 +4,13 @@
 import ArgumentParser
 import RTMPKit
 
-/// Parses a `--dest` argument into an ``RTMPConfiguration``.
+/// Parses a `--dest` argument into an `RTMPConfiguration`.
 ///
 /// Supported formats:
-/// - `twitch:<streamKey>` → ``RTMPConfiguration/twitch(streamKey:)``
-/// - `youtube:<streamKey>` → ``RTMPConfiguration/youtube(streamKey:)``
-/// - `facebook:<streamKey>` → ``RTMPConfiguration/facebook(streamKey:)``
-/// - `kick:<streamKey>` → ``RTMPConfiguration/kick(streamKey:)``
+/// - `twitch:<streamKey>` → `RTMPConfiguration.twitch(streamKey:)`
+/// - `youtube:<streamKey>` → `RTMPConfiguration.youtube(streamKey:)`
+/// - `facebook:<streamKey>` → `RTMPConfiguration.facebook(streamKey:)`
+/// - `kick:<streamKey>` → `RTMPConfiguration.kick(streamKey:)`
 /// - `rtmp://server/app:<streamKey>` → custom URL
 /// - `rtmps://server/app:<streamKey>` → custom RTMPS URL
 public struct DestinationArgument: Sendable {

@@ -15,10 +15,10 @@ struct RTMPKitCommandsCoreTests {
         )
     }
 
-    @Test("version is 0.1.0")
+    @Test("version is 0.2.0")
     func versionMatches() {
         #expect(
-            RTMPKitCommand.configuration.version == "0.1.0"
+            RTMPKitCommand.configuration.version == "0.2.0"
         )
     }
 

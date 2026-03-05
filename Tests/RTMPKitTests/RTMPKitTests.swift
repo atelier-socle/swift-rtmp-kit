@@ -9,6 +9,6 @@ import Testing
 struct RTMPKitCoreTests {
     @Test("Version is set")
     func versionIsSet() {
-        #expect(RTMPKitVersion.version == "0.1.0")
+        #expect(RTMPKitVersion.version == "0.2.0")
     }
 }

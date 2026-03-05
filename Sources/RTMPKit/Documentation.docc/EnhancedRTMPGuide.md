@@ -136,6 +136,36 @@ let frame = FLVAudioTag.enhancedCodedFrame(
 let endSeq = FLVAudioTag.enhancedSequenceEnd(fourCC: .opus)
 ```
 
+### Auto-Detection from FLV Files
+
+RTMPKit 0.2.0 can auto-detect the video codec from FLV files and enable Enhanced RTMP v2 transparently. When an FLV file contains HEVC, AV1, or VP9 video tags, the CLI automatically enables Enhanced RTMP and sends the `fourCcList` in the connect command.
+
+```swift
+// Probe codecs from FLV file bytes
+let codecInfo = FLVCodecProbe.probe(data: flvBytes, dataOffset: 13)
+
+// Check if Enhanced RTMP is required
+if codecInfo.videoCodec.requiresEnhancedRTMP {
+    // HEVC, AV1, VP9 → Enhanced RTMP v2 will be used
+    print("Video: \(codecInfo.videoCodec.displayName) — Enhanced RTMP v2 will be used")
+}
+```
+
+In the CLI, auto-detection is automatic:
+
+```bash
+# HEVC FLV → Enhanced RTMP v2 enabled transparently
+rtmp-cli publish --url rtmp://server/app --key key --file hevc_stream.flv
+# Output: Video: HEVC (H.265) — Enhanced RTMP v2 will be used
+
+# H.264 FLV → legacy RTMP (no fourCcList in connect)
+rtmp-cli publish --url rtmp://server/app --key key --file h264_stream.flv
+# Output: Video: H.264
+
+# Force legacy mode (not recommended for non-H.264)
+rtmp-cli publish --url rtmp://server/app --key key --file hevc_stream.flv --no-enhanced-rtmp
+```
+
 ### Disabling Enhanced RTMP
 
 Disable Enhanced RTMP if the server does not support it or you want to force legacy FLV tags:

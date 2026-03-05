@@ -368,7 +368,7 @@ struct AMF0RoundtripCompositeTests {
                 ("audiosamplesize", .number(16)),
                 ("stereo", .boolean(true)),
                 ("audiocodecid", .number(10)),
-                ("encoder", .string("swift-rtmp-kit/0.1.0"))
+                ("encoder", .string("swift-rtmp-kit/0.2.0"))
             ])
         ]
         let result = try roundtripMultiple(values)

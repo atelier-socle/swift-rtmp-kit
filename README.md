@@ -9,21 +9,34 @@
 
 ![swift-rtmp-kit](./assets/banner.png)
 
-Pure Swift RTMP publish client for live streaming to Twitch, YouTube, Facebook, Kick, and any RTMP server. Enhanced RTMP v2 support with FourCC codec negotiation for HEVC, AV1, VP9, and Opus. Zero dependencies on the core target. Strict `Sendable` conformance throughout. Part of the [Atelier Socle](https://www.atelier-socle.com) streaming ecosystem.
+Pure Swift RTMP publish client for live streaming to Twitch, YouTube, Facebook, Kick, Instagram, TikTok, Rumble, and any RTMP server. Enhanced RTMP v2 with auto-detection for HEVC, AV1, VP9, and Opus. Adaptive bitrate, multi-destination publishing, stream recording, authentication, bandwidth probing, connection quality scoring, Prometheus/StatsD metrics, and full RTMP ingest server. Zero dependencies on the core target. Strict `Sendable` conformance throughout. Part of the [Atelier Socle](https://www.atelier-socle.com) streaming ecosystem.
 
 ---
 
 ## Features
 
 - **Full RTMP 1.0 protocol** — Handshake (C0/C1/C2), chunk stream multiplexing, AMF0 commands, FLV packaging
-- **Enhanced RTMP v2** — FourCC codec negotiation for HEVC, AV1, VP9, Opus, FLAC, AC-3, and E-AC-3
+- **Enhanced RTMP v2** — FourCC codec negotiation for HEVC, AV1, VP9, Opus, FLAC, AC-3, and E-AC-3 with auto-detection from FLV files
 - **FLV packaging** — Audio tags (AAC sequence headers, raw frames), video tags (AVC NALUs, keyframes), script data
-- **Platform presets** — One-line configuration for Twitch, YouTube, Facebook, and Kick with TLS, chunk size, and Enhanced RTMP
+- **10 platform presets** — One-line configuration for Twitch, YouTube, Facebook, Kick, Instagram, TikTok, Rumble, LinkedIn, Trovo, and Twitter/Periscope
+- **Streaming platform registry** — Programmatic discovery with case-insensitive lookup, TLS-required filtering, and dynamic configuration
+- **Adaptive bitrate** — Conservative, responsive, and aggressive ABR policies with EWMA bandwidth estimation, RTT tracking, congestion detection, and frame dropping
+- **Multi-destination publishing** — Stream simultaneously to N servers with per-destination state, failure isolation, hot add/remove, and configurable failure policies
+- **RTMP authentication** — Simple (query string), token with expiry, and Adobe MD5 challenge/response (Wowza)
+- **FLV codec auto-detection** — HEVC, AV1, VP9, and Opus detected automatically from FLV files; Enhanced RTMP v2 enabled transparently
+- **Stream recording** — Record live streams to FLV with segmentation, pause/resume, and size limits
+- **Bandwidth probing** — Measure bandwidth, RTT jitter, packet loss, and get 6-tier quality preset recommendations
+- **Connection quality scoring** — Composite quality grades (excellent/good/fair/poor/critical) with 5 weighted dimensions and trend analysis
+- **Dynamic metadata** — `@setDataFrame`/`onMetaData` during streaming, timed text, cue points with rich parameters, and captions with multiple standards
+- **AMF3 support** — Full AMF3 encoding and decoding for all 18 type markers with 3 reference tables (string/object/traits)
+- **Prometheus and StatsD metrics** — Export publisher and server metrics to monitoring systems with periodic or on-demand snapshots
+- **RTMP ingest server** — Accept inbound RTMP connections with stream key validation (allow-list, closure-based), relay to multiple destinations, and DVR recording
+- **Server security** — IP blocklist/allowlist, temporary bans, rate limiting per IP, and configurable security policies (open/standard/strict)
 - **Auto-reconnection** — Exponential backoff with configurable jitter, retry limits, and four presets (`.default`, `.aggressive`, `.conservative`, `.none`)
 - **Real-time monitoring** — `AsyncStream`-based event bus, ConnectionMonitor with sliding-window bitrate, dropped frame tracking, and RTT measurement
 - **Transport dependency injection** — Replace the NIO transport with a mock for testing without a real RTMP server
 - **Cross-platform** — macOS 14+, iOS 17+, tvOS 17+, watchOS 10+, visionOS 1+, and Linux (Swift 6.2+)
-- **CLI tool** — `rtmp-cli` for streaming FLV files, testing connections, and querying server capabilities
+- **CLI tool** — `rtmp-cli` for streaming, recording, probing, server management, and diagnostics
 - **Swift 6.2 strict concurrency** — Actors for stateful types, `Sendable` everywhere, `async`/`await` throughout, zero `@unchecked Sendable` or `nonisolated(unsafe)`
 - **Zero core dependencies** — The `RTMPKit` target depends only on SwiftNIO for the transport layer. No other third-party dependencies
 
@@ -33,10 +46,11 @@ Pure Swift RTMP publish client for live streaming to Twitch, YouTube, Facebook, 
 
 | Standard | Reference |
 |----------|-----------|
-| RTMP 1.0 | [Adobe RTMP Specification](https://rtmp.veriskope.com/docs/spec/) |
-| Enhanced RTMP v2 | [Veritone Enhanced RTMP](https://rtmp.veriskope.com/docs/enhanced/) |
-| AMF0 | [Adobe AMF0 Specification](https://rtmp.veriskope.com/docs/amf0-spec/) |
-| FLV File Format | [Adobe FLV and F4V](https://rtmp.veriskope.com/docs/legacy/flv-spec/) |
+| RTMP 1.0 | [Adobe RTMP Specification (PDF)](https://veovera.github.io/enhanced-rtmp/docs/legacy/rtmp-v1-0-spec.pdf) |
+| Enhanced RTMP v2 | [Veovera Enhanced RTMP (GitHub)](https://github.com/veovera/enhanced-rtmp) |
+| AMF0 | [Adobe AMF0 Specification (PDF)](https://veovera.github.io/enhanced-rtmp/docs/legacy/amf0-file-format-spec.pdf) |
+| AMF3 | [Adobe AMF3 Specification (PDF)](https://veovera.github.io/enhanced-rtmp/docs/legacy/amf3-file-format-spec.pdf) |
+| FLV File Format | [Adobe FLV/F4V Specification v10.1 (PDF)](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf) |
 
 ---
 
@@ -78,7 +92,7 @@ Add the dependency to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/atelier-socle/swift-rtmp-kit.git", from: "0.1.0")
+    .package(url: "https://github.com/atelier-socle/swift-rtmp-kit.git", from: "0.2.0")
 ]
 ```
 
@@ -110,7 +124,7 @@ Then add it to your target:
 
 ### Platform Presets
 
-One-line configuration for major streaming platforms:
+One-line configuration for 10 streaming platforms:
 
 ```swift
 // Twitch — RTMPS, Enhanced RTMP enabled
@@ -130,6 +144,43 @@ let facebook = RTMPConfiguration.facebook(streamKey: "FB-xxxx")
 
 // Kick — Enhanced RTMP disabled
 let kick = RTMPConfiguration.kick(streamKey: "kick_key_123")
+
+// Instagram — RTMPS required, no Enhanced RTMP
+let instagram = RTMPConfiguration.instagram(streamKey: "IGLive_abc123")
+
+// TikTok — RTMPS required
+let tiktok = RTMPConfiguration.tiktok(streamKey: "tiktok_stream_key")
+
+// Rumble — plain RTMP (no TLS)
+let rumble = RTMPConfiguration.rumble(streamKey: "my_rumble_key")
+```
+
+### Streaming Platform Registry
+
+Discover and configure all 10 platforms programmatically:
+
+```swift
+// Case-insensitive lookup
+let preset = StreamingPlatformRegistry.platform(named: "LinkedIn")  // .linkedin
+let preset2 = StreamingPlatformRegistry.platform(named: "TROVO")    // .trovo
+
+// Create configuration from platform name
+let config = StreamingPlatformRegistry.configuration(
+    platform: "twitter", streamKey: "periscope_key"
+)
+
+// Iterate all platforms
+for preset in StreamingPlatformRegistry.allPlatforms {
+    let config = StreamingPlatformRegistry.configuration(
+        platform: preset.name, streamKey: "test_key"
+    )
+    print("\(preset.name): \(config?.url ?? "N/A")")
+}
+
+// List TLS-required platforms
+for preset in StreamingPlatformRegistry.tlsRequiredPlatforms {
+    // All use rtmps://
+}
 ```
 
 ### Custom Configuration
@@ -165,6 +216,12 @@ let eventTask = Task {
             print("Server: \(code) — \(description)")
         case .statisticsUpdate(let stats):
             print("Bitrate: \(stats.currentBitrate) bps")
+        case .bitrateRecommendation(let rec):
+            print("ABR: \(rec.previousBitrate) → \(rec.recommendedBitrate)")
+        case .qualityWarning(let score):
+            print("Quality: \(score.grade)")
+        case .recordingEvent(let event):
+            print("Recording: \(event)")
         case .error(let error):
             print("Error: \(error)")
         default:
@@ -245,6 +302,294 @@ let audioSeq = FLVAudioTag.enhancedSequenceStart(fourCC: .opus, config: opusConf
 let audioFrame = FLVAudioTag.enhancedCodedFrame(fourCC: .opus, data: opusData)
 ```
 
+### HEVC Auto-Detection
+
+```swift
+// Auto-detect codecs from FLV file
+let codecInfo = FLVCodecProbe.probe(data: flvBytes, dataOffset: 13)
+print("Video: \(codecInfo.videoCodec.displayName)")
+print("Audio: \(codecInfo.audioCodec.displayName)")
+
+if codecInfo.videoCodec.requiresEnhancedRTMP {
+    print("Enhanced RTMP v2 will be used")
+}
+```
+
+### Multi-Destination Publishing
+
+Stream to multiple platforms simultaneously with failure isolation:
+
+```swift
+let multi = MultiPublisher()
+try await multi.addDestination(PublishDestination(
+    id: "twitch",
+    configuration: .twitch(streamKey: "live_xxx")
+))
+try await multi.addDestination(PublishDestination(
+    id: "youtube",
+    configuration: .youtube(streamKey: "xxxx-xxxx-xxxx-xxxx")
+))
+try await multi.addDestination(PublishDestination(
+    id: "facebook",
+    configuration: .facebook(streamKey: "FB-zzz")
+))
+
+// Connect all destinations
+await multi.startAll()
+
+// Send A/V to all active destinations
+await multi.sendVideo(naluData, timestamp: 0, isKeyframe: true)
+await multi.sendAudio(aacFrame, timestamp: 0)
+
+// Send metadata to all destinations
+await multi.sendMetadata(streamMeta)
+await multi.sendText("Now playing", timestamp: 10.0)
+
+// Per-destination statistics
+let stats = await multi.statistics
+print("Active: \(stats.activeCount), bytes: \(stats.totalBytesSent)")
+
+// Hot add/remove during streaming
+try await multi.addDestination(
+    PublishDestination(id: "custom", url: "rtmp://server/app", streamKey: "key")
+)
+try await multi.removeDestination(id: "custom")
+
+// Failure policies
+await multi.setFailurePolicy(.stopAllOnFailure(count: 2))
+
+await multi.stopAll()
+```
+
+### Adaptive Bitrate
+
+Three preset ABR policies with configurable min/max bitrate:
+
+```swift
+var config = RTMPConfiguration.twitch(streamKey: "live_xxx")
+config.adaptiveBitrate = .responsive(min: 1_000_000, max: 6_000_000)
+// .conservative: stepDown 0.80, slow recovery (live events)
+// .responsive: stepDown 0.75, balanced (gaming, sport)
+// .aggressive: stepDown 0.65, fast (casual streaming)
+
+let publisher = RTMPPublisher()
+try await publisher.publish(configuration: config)
+
+// Read current bitrate
+let bitrate = await publisher.currentVideoBitrate
+
+// Force manual override
+await publisher.forceVideoBitrate(2_000_000)
+
+// Frame dropping: B-frames → P-frames (I-frames never dropped)
+config.frameDroppingStrategy = .aggressive  // or .conservative, .default
+```
+
+### Authentication
+
+```swift
+// Simple auth — appends credentials to URL
+var config = RTMPConfiguration(url: "rtmp://server/app", streamKey: "key")
+config.authentication = .simple(username: "user", password: "pass")
+
+// Adobe challenge/response (Wowza) — automatic two-round handshake
+config.authentication = .adobeChallenge(username: "broadcaster", password: "s3cr3t")
+
+// Token auth with expiry — throws RTMPError.tokenExpired if expired
+config.authentication = .token("eyJhbGciOiJ...", expiry: Date().addingTimeInterval(3600))
+```
+
+### Stream Recording
+
+Record live streams to FLV with segmentation and size limits:
+
+```swift
+let recorder = StreamRecorder(configuration: RecordingConfiguration(
+    format: .flv,
+    outputDirectory: "/tmp/recordings",
+    baseFilename: "stream",
+    segmentDuration: 300,       // 5-minute segments
+    maxTotalSize: 500_000_000   // 500 MB total limit
+))
+try await recorder.start()
+
+// Write frames
+try await recorder.writeVideo(videoBytes, timestamp: 0, isKeyframe: true)
+try await recorder.writeAudio(audioBytes, timestamp: 0)
+
+// Pause/resume
+await recorder.pause()
+await recorder.resume()
+
+// Stop and get segment info
+let segment = try await recorder.stop()
+
+// Or record through the publisher
+try await publisher.startRecording(configuration: recordingConfig)
+let segment = try await publisher.stopRecording()
+```
+
+### Bandwidth Probing
+
+Measure connection quality before streaming:
+
+```swift
+let probe = BandwidthProbe(
+    configuration: .init(duration: 0.3, burstInterval: 0.05, warmupBursts: 1)
+)
+let result = try await probe.probe(url: "rtmp://server/app")
+print("Bandwidth: \(result.estimatedBandwidth) bps")
+print("Signal quality: \(result.signalQuality)")
+print("Summary: \(result.summary)")
+
+// Auto-select quality preset for platform
+let config = QualityPresetSelector.select(
+    for: result, platform: .twitch(.auto), streamKey: "live_xxx"
+)
+// 6-tier quality ladder: 360p30 → 480p30 → 720p30 → 720p60 → 1080p30 → 1080p60
+```
+
+### Connection Quality Scoring
+
+Monitor connection health with composite grades:
+
+```swift
+let monitor = ConnectionQualityMonitor(
+    scoringInterval: 0.05, reportingWindow: 5.0
+)
+await monitor.start()
+
+await monitor.recordRTT(15.0)
+await monitor.recordBytesSent(500_000, targetBitrate: 4_000_000)
+
+var iterator = await monitor.scores.makeAsyncIterator()
+let score = await iterator.next()
+// score?.grade — .excellent, .good, .fair, .poor, .critical
+
+let report = await monitor.generateReport()
+// report?.trend — .improving, .stable, .degrading
+```
+
+### Dynamic Metadata
+
+```swift
+// Stream metadata with factory methods
+let meta = StreamMetadata.h264AAC(
+    width: 1920, height: 1080, frameRate: 30,
+    videoBitrate: 4_500_000, audioBitrate: 128_000
+)
+try await publisher.updateStreamInfo(meta)
+
+// Timed metadata: text, cue points, captions
+try await publisher.send(.text("hello", timestamp: 0))
+try await publisher.send(.cuePoint(CuePoint(
+    name: "ad-break", time: 30000, type: .event,
+    parameters: ["duration": .number(15), "sponsor": .string("acme")]
+)))
+try await publisher.send(.caption(CaptionData(text: "subtitle", timestamp: 2000)))
+
+// Custom fields survive AMF0 roundtrip
+var meta = StreamMetadata()
+meta.customFields["copyright"] = .string("2026 Acme")
+```
+
+### Prometheus and StatsD Metrics
+
+```swift
+// Prometheus text format
+let exporter = PrometheusExporter(prefix: "rtmp")
+let output = exporter.render(stats, labels: ["env": "production"])
+// rtmp_bytes_sent_total{env="production",platform="twitch"} 52428800
+
+// StatsD packet format
+let statsd = StatsDExporter(prefix: "rtmp")
+let lines = statsd.buildPacket(stats)
+// rtmp.video_bitrate_bps:4200000|g
+
+// Wire periodic export to publisher
+await publisher.setMetricsExporter(exporter, interval: 10.0)
+
+// On-demand snapshot
+let snapshot = await publisher.metricsSnapshot()
+```
+
+```bash
+# CLI: Prometheus file output
+rtmp-cli publish --url rtmp://server/app --key key --file stream.flv \
+  --metrics-prometheus /tmp/metrics.txt
+
+# CLI: StatsD UDP output
+rtmp-cli publish --url rtmp://server/app --key key --file stream.flv \
+  --metrics-statsd localhost:8125
+```
+
+### RTMP Ingest Server
+
+Accept inbound RTMP connections with stream key validation, relay, and DVR:
+
+```swift
+// Basic server
+let server = RTMPServer(configuration: .localhost)
+try await server.start()
+// state == .running(port: 1935)
+
+// Accept publisher connections
+let session = await server.acceptConnection()
+let streamName = await session.streamName
+
+// Stream key validation
+let config = RTMPServerConfiguration(
+    host: "127.0.0.1",
+    streamKeyValidator: AllowListStreamKeyValidator(
+        allowedKeys: ["live_abc123", "stream_xyz"]
+    )
+)
+
+// Closure-based validation for dynamic auth
+let validator = ClosureStreamKeyValidator { key, app in
+    key.hasPrefix("live_") && app == "live"
+}
+
+// Relay to multiple destinations
+let relay = RTMPStreamRelay(
+    destinations: [
+        .init(id: "twitch", configuration: .twitch(streamKey: "live_xxx")),
+        .init(id: "youtube", configuration: .youtube(streamKey: "yyyy-yyyy"))
+    ]
+)
+try await relay.start()
+await server.attachRelay(relay, toStream: "live/myStream")
+
+// DVR recording
+let dvr = RTMPStreamDVR(configuration: RecordingConfiguration(
+    outputDirectory: "/tmp/dvr"
+))
+try await dvr.start()
+await server.attachDVR(dvr, toStream: "live/myStream")
+
+// Auto-DVR: record all ingest streams automatically
+let autoDVRConfig = RTMPServerConfiguration(
+    host: "127.0.0.1",
+    autoDVR: true,
+    dvrConfiguration: RecordingConfiguration(outputDirectory: "/tmp/dvr")
+)
+
+// Server security
+let policy = RTMPServerSecurityPolicy(
+    streamKeyValidator: AllowListStreamKeyValidator(allowedKeys: ["live_abc"]),
+    rateLimiter: RTMPConnectionRateLimiter(maxConnectionsPerIPPerMinute: 5),
+    maxStreamDuration: 3600
+)
+// Presets: .open, .standard, .strict
+
+// Access control
+let ac = RTMPServerAccessControl()
+await ac.addToBlocklist("192.168.1.100")
+await ac.ban("10.0.0.1", duration: 60)
+
+await server.stop()
+```
+
 ### Transport Dependency Injection
 
 Replace the real network with a mock for testing:
@@ -274,30 +619,51 @@ cp .build/release/rtmp-cli /usr/local/bin/
 
 | Command | Description |
 |---------|-------------|
-| `publish` | Stream an FLV file to an RTMP server with real-time progress |
+| `publish` | Stream an FLV file to one or more RTMP servers |
 | `test-connection` | Test connectivity, handshake, and measure latency |
 | `info` | Query server information, capabilities, and Enhanced RTMP support |
+| `probe` | Measure bandwidth and connection quality |
+| `record` | Publish an FLV file and record the stream to disk |
+| `server` | Start a local RTMP ingest server |
 
 ### Examples
 
 ```bash
-# Test connection to Twitch
-rtmp-cli test-connection --preset twitch --key live_xxx
-
-# Stream an FLV file to Twitch
+# Stream to Twitch
 rtmp-cli publish --preset twitch --key live_xxx --file stream.flv
 
-# Stream to a local RTMP server
-rtmp-cli publish --url rtmp://localhost:1935/live --key test --file video.flv
+# Multi-destination: Twitch + YouTube
+rtmp-cli publish --file stream.flv --dest twitch:live_xxx --dest youtube:xxxx-xxxx
+
+# HEVC auto-detection (Enhanced RTMP enabled transparently)
+rtmp-cli publish --url rtmp://server/app --key key --file hevc_stream.flv
+
+# Adobe authentication
+rtmp-cli publish --url rtmp://wowza.server.com/live --key stream \
+  --auth-user broadcaster --auth-pass s3cr3t --file stream.flv
+
+# Probe bandwidth
+rtmp-cli probe rtmp://server:1935/live --thorough --platform twitch
+
+# Record a stream
+rtmp-cli record stream.flv --url rtmp://server/app --key key --output /tmp/recordings
+
+# Start a local ingest server with DVR
+rtmp-cli server start --port 1935 --allow-key mykey --dvr /tmp/dvr
+
+# Test connection
+rtmp-cli test-connection --preset twitch --key live_xxx
 
 # Query server info
-rtmp-cli info --url rtmp://localhost:1935/live --key test
+rtmp-cli info --url rtmp://localhost:1935/live --key test --json
 
-# Stream with looping
-rtmp-cli publish --preset twitch --key live_xxx --file stream.flv --loop
+# Prometheus metrics
+rtmp-cli publish --url rtmp://server/app --key key --file stream.flv \
+  --metrics-prometheus /tmp/metrics.txt
 
-# Stream without Enhanced RTMP
-rtmp-cli publish --url rtmp://server/app --key xxx --file video.flv --no-enhanced-rtmp
+# StatsD metrics
+rtmp-cli publish --url rtmp://server/app --key key --file stream.flv \
+  --metrics-statsd localhost:8125
 ```
 
 See the [CLI Reference](https://atelier-socle.github.io/swift-rtmp-kit/documentation/rtmpkit/clireference) for the full command documentation with all options and flags.
@@ -309,19 +675,28 @@ See the [CLI Reference](https://atelier-socle.github.io/swift-rtmp-kit/documenta
 ```
 Sources/
 ├── RTMPKit/                     # Core library (NIO transport)
-│   ├── AMF/                     # AMF0 encoder/decoder
+│   ├── AdaptiveBitrate/         # ABR policies, network monitor, frame dropping
+│   ├── AMF/                     # AMF0 + AMF3 encoder/decoder
+│   ├── Authentication/          # Simple, token, Adobe challenge/response auth
 │   ├── Chunk/                   # Chunk stream multiplexing and assembly
 │   ├── Configuration/           # RTMPConfiguration, platform presets, reconnect policy
 │   ├── Enhanced/                # Enhanced RTMP v2 (FourCC, ExVideoHeader, ExAudioHeader)
 │   ├── Extensions/              # UInt24, ByteBuffer helpers
-│   ├── FLV/                     # FLV tags (audio, video, script, header)
+│   ├── FLV/                     # FLV tags, header, codec probe
 │   ├── Handshake/               # RTMP handshake (C0C1/S0S1S2/C2)
 │   ├── Message/                 # RTMP messages, commands, control messages
+│   ├── Metadata/                # StreamMetadata, cue points, captions
+│   ├── Metrics/                 # Prometheus, StatsD export
 │   ├── Monitoring/              # ConnectionMonitor, ConnectionStatistics
+│   ├── MultiPublisher/          # Multi-destination fan-out publishing
+│   ├── Probing/                 # Bandwidth probe, quality preset selection
 │   ├── Publisher/               # RTMPPublisher, session, connection, stream key
+│   ├── QualityScore/            # Connection quality scoring, grades, reports
+│   ├── Recording/               # FLV recording, segmentation
+│   ├── Server/                  # RTMP ingest server, relay, DVR, security
 │   ├── Transport/               # NIOTransport, RTMPTransportProtocol, TLS
 │   └── Documentation.docc/      # DocC articles
-├── RTMPKitCommands/             # CLI command implementations (publish, test-connection, info)
+├── RTMPKitCommands/             # CLI commands (publish, record, probe, server, test-connection, info)
 └── RTMPKitCLI/                  # CLI entry point (@main)
 ```
 

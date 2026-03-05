@@ -56,7 +56,7 @@ struct AMF0ShowcaseTests {
         meta.audioSampleSize = 16
         meta.isStereo = true
         meta.audioCodecID = 10
-        meta.encoder = "swift-rtmp-kit/0.1.0"
+        meta.encoder = "swift-rtmp-kit/0.2.0"
 
         let msg = RTMPDataMessage.setDataFrame(metadata: meta)
         let encoded = msg.encode()
@@ -73,7 +73,7 @@ struct AMF0ShowcaseTests {
             #expect(decodedMeta.audioSampleSize == 16)
             #expect(decodedMeta.isStereo == true)
             #expect(decodedMeta.audioCodecID == 10)
-            #expect(decodedMeta.encoder == "swift-rtmp-kit/0.1.0")
+            #expect(decodedMeta.encoder == "swift-rtmp-kit/0.2.0")
         } else {
             Issue.record("Expected .setDataFrame")
         }

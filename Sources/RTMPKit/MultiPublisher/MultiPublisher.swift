@@ -94,7 +94,7 @@ public actor MultiPublisher {
 
     /// Creates a multi-publisher with a custom transport factory.
     ///
-    /// Use this in tests to inject ``MockTransport`` per destination.
+    /// Use this in tests to inject `MockTransport` per destination.
     ///
     /// - Parameter transportFactory: Closure that creates a transport for each destination.
     public init(transportFactory: @escaping TransportFactory) {

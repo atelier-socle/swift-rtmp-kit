@@ -8,7 +8,7 @@ Pure Swift RTMP publish client for live streaming to Twitch, YouTube, Facebook, 
 
 ## Overview
 
-RTMPKit provides a complete, production-ready RTMP publish client for live audio and video streaming. The library handles the full RTMP lifecycle — handshake, chunking, AMF0 encoding, FLV packaging, Enhanced RTMP v2 codec negotiation, and graceful teardown — all built with Swift 6.2 strict concurrency and zero external dependencies on the core target.
+RTMPKit provides a complete, production-ready RTMP publish client for live audio and video streaming. The library handles the full RTMP lifecycle — handshake, chunking, AMF0/AMF3 encoding, FLV packaging, Enhanced RTMP v2 codec negotiation, and graceful teardown — all built with Swift 6.2 strict concurrency and zero external dependencies on the core target.
 
 ```swift
 import RTMPKit
@@ -28,24 +28,35 @@ await publisher.disconnect()
 ### Key Features
 
 - **RTMP 1.0** — Full protocol implementation: handshake, chunk stream multiplexing, AMF0 commands
-- **Enhanced RTMP v2** — FourCC codec negotiation for HEVC, AV1, VP9, Opus, FLAC, AC-3, E-AC-3
+- **Enhanced RTMP v2** — FourCC codec negotiation for HEVC, AV1, VP9, Opus, FLAC, AC-3, E-AC-3 with auto-detection from FLV files
 - **FLV packaging** — Audio tags (AAC), video tags (H.264), script data, and sequence headers
-- **Platform presets** — One-line configuration for Twitch, YouTube, Facebook, and Kick
+- **Platform presets** — One-line configuration for Twitch, YouTube, Facebook, Kick, Instagram, TikTok, and more
+- **Adaptive bitrate** — Conservative, responsive, and aggressive ABR policies with frame dropping
+- **Multi-destination publishing** — Stream simultaneously to multiple servers with per-destination state and failure isolation
+- **RTMP authentication** — Simple (query string), token, and Adobe MD5 challenge/response
+- **Stream recording** — Record live streams to FLV with segmentation and size limits
+- **Bandwidth probing** — Measure available bandwidth and get quality preset recommendations
+- **Connection quality scoring** — Composite quality grades with warning thresholds
+- **Dynamic metadata** — Update `@setDataFrame`/`onMetaData` during streaming, cue points, and captions
+- **AMF3 support** — Full AMF3 encoding and decoding for all 18 type markers
+- **Prometheus and StatsD metrics** — Export streaming metrics to monitoring systems
+- **RTMP server** — Ingest server with stream key validation, relay, and DVR
 - **Auto-reconnect** — Exponential backoff with configurable jitter and retry policies
 - **Real-time monitoring** — Connection statistics, bitrate tracking, dropped frame detection, RTT measurement
 - **Transport DI** — Dependency injection for testing without a real RTMP server
+- **CLI tool** — `rtmp-cli` for streaming, recording, probing, and server management
 - **Cross-platform** — macOS 14+, iOS 17+, tvOS 17+, watchOS 10+, visionOS 1+, Linux (Swift 6.2+)
-- **CLI tool** — `rtmp-cli` for streaming FLV files, testing connections, and querying server info
 - **Swift 6.2 strict concurrency** — Actors, `Sendable`, `async`/`await` throughout, zero `@unchecked Sendable`
 
 ### Standards
 
 | Standard | Reference |
 |----------|-----------|
-| RTMP 1.0 | [Adobe RTMP Specification](https://rtmp.veriskope.com/docs/spec/) |
-| Enhanced RTMP v2 | [Veritone Enhanced RTMP](https://rtmp.veriskope.com/docs/enhanced/) |
-| AMF0 | [Adobe AMF0 Specification](https://rtmp.veriskope.com/docs/amf0-spec/) |
-| FLV File Format | [Adobe FLV and F4V](https://rtmp.veriskope.com/docs/legacy/flv-spec/) |
+| RTMP 1.0 | [Adobe RTMP Specification (PDF)](https://veovera.github.io/enhanced-rtmp/docs/legacy/rtmp-v1-0-spec.pdf) |
+| Enhanced RTMP v2 | [Veovera Enhanced RTMP (GitHub)](https://github.com/veovera/enhanced-rtmp) |
+| AMF0 | [Adobe AMF0 Specification (PDF)](https://veovera.github.io/enhanced-rtmp/docs/legacy/amf0-file-format-spec.pdf) |
+| AMF3 | [Adobe AMF3 Specification (PDF)](https://veovera.github.io/enhanced-rtmp/docs/legacy/amf3-file-format-spec.pdf) |
+| FLV File Format | [Adobe FLV/F4V Specification v10.1 (PDF)](https://veovera.github.io/enhanced-rtmp/docs/legacy/video-file-format-v10-1-spec.pdf) |
 
 ## Topics
 
@@ -53,60 +64,112 @@ await publisher.disconnect()
 
 - <doc:GettingStarted>
 - <doc:StreamingGuide>
+- <doc:CLIReference>
 
-### Protocol
+### Streaming Features
 
-- <doc:EnhancedRTMPGuide>
+- <doc:AdaptiveBitrateGuide>
+- <doc:MultiDestinationGuide>
+- <doc:RecordingGuide>
+- <doc:MetadataGuide>
+- <doc:FLVCodecProbeGuide>
+
+### Authentication
+
+- <doc:AuthenticationGuide>
 
 ### Configuration
 
 - <doc:PlatformPresetsGuide>
 - <doc:ReconnectionGuide>
+- <doc:BandwidthProbeGuide>
 
-### Monitoring
+### Monitoring and Metrics
 
 - <doc:MonitoringGuide>
+- <doc:QualityScoreGuide>
+- <doc:MetricsExportGuide>
+
+### Protocol and Encoding
+
+- <doc:EnhancedRTMPGuide>
+- <doc:AMF3Guide>
 
 ### Testing
 
 - <doc:TransportDIGuide>
 - <doc:TestingGuide>
 
-### Tools
-
-- <doc:CLIReference>
-
-### Publisher
+### Core Publisher
 
 - ``RTMPPublisher``
 - ``RTMPConfiguration``
 - ``RTMPPublisherState``
 - ``RTMPError``
+- ``RTMPEvent``
 
-### Protocol Types
+### Multi-Destination
 
-- ``AMF0Value``
-- ``AMF0Encoder``
-- ``AMF0Decoder``
-- ``ChunkHeader``
-- ``ChunkAssembler``
-- ``ChunkDisassembler``
-- ``RTMPHandshake``
-- ``HandshakeBytes``
-- ``HandshakeValidator``
+- ``MultiPublisher``
+- ``PublishDestination``
+- ``DestinationState``
+- ``MultiPublisherEvent``
+- ``MultiPublisherFailurePolicy``
+- ``MultiPublisherStatistics``
 
-### Message Types
+### Adaptive Bitrate
 
-- ``RTMPMessage``
-- ``RTMPCommand``
-- ``RTMPControlMessage``
-- ``RTMPDataMessage``
-- ``RTMPUserControlEvent``
-- ``ConnectProperties``
-- ``StreamMetadata``
+- ``AdaptiveBitratePolicy``
+- ``AdaptiveBitrateConfiguration``
+- ``NetworkConditionMonitor``
+- ``BitrateRecommendation``
+- ``BitrateChangeReason``
+- ``FrameDroppingStrategy``
 
-### FLV Types
+### Authentication Types
 
+- ``RTMPAuthentication``
+- ``AdobeChallengeAuth``
+- ``SimpleAuth``
+- ``TokenAuth``
+
+### Configuration Types
+
+- ``PlatformPreset``
+- ``ReconnectPolicy``
+- ``TwitchIngestServer``
+- ``TransportConfiguration``
+- ``ObjectEncoding``
+- ``StreamingPlatformRegistry``
+
+### Monitoring Types
+
+- ``ConnectionMonitor``
+- ``ConnectionStatistics``
+- ``RTMPStatusCode``
+- ``StatusInfo``
+- ``ServerInfo``
+
+### Quality Scoring
+
+- ``ConnectionQualityScore``
+- ``ConnectionQualityMonitor``
+- ``QualityDimension``
+- ``QualityReport``
+
+### Bandwidth Probing
+
+- ``BandwidthProbe``
+- ``ProbeConfiguration``
+- ``ProbeResult``
+- ``QualityPresetSelector``
+
+### FLV and Codec Types
+
+- ``FLVCodecProbe``
+- ``FLVCodecInfo``
+- ``FLVVideoCodec``
+- ``FLVAudioCodec``
 - ``FLVHeader``
 - ``FLVAudioTag``
 - ``FLVVideoTag``
@@ -124,21 +187,71 @@ await publisher.disconnect()
 - ``ExAudioPacketType``
 - ``MultitrackType``
 
-### Configuration Types
+### Protocol Types
 
-- ``PlatformPreset``
-- ``ReconnectPolicy``
-- ``TwitchIngestServer``
-- ``TransportConfiguration``
+- ``AMF0Value``
+- ``AMF0Encoder``
+- ``AMF0Decoder``
+- ``AMF3Value``
+- ``AMF3Encoder``
+- ``AMF3Decoder``
+- ``AMF3Traits``
+- ``AMF3Object``
+- ``ChunkHeader``
+- ``ChunkAssembler``
+- ``ChunkDisassembler``
+- ``RTMPHandshake``
+- ``HandshakeBytes``
+- ``HandshakeValidator``
 
-### Monitoring Types
+### Message Types
 
-- ``ConnectionMonitor``
-- ``ConnectionStatistics``
-- ``RTMPStatusCode``
-- ``RTMPEvent``
-- ``StatusInfo``
-- ``ServerInfo``
+- ``RTMPMessage``
+- ``RTMPCommand``
+- ``RTMPControlMessage``
+- ``RTMPDataMessage``
+- ``RTMPUserControlEvent``
+- ``ConnectProperties``
+- ``StreamMetadata``
+
+### Recording
+
+- ``StreamRecorder``
+- ``RecordingConfiguration``
+- ``RecordingSegment``
+- ``RecordingEvent``
+- ``FLVWriter``
+- ``ElementaryStreamWriter``
+
+### Metadata
+
+- ``TimedMetadata``
+- ``MetadataUpdater``
+- ``CuePoint``
+- ``CaptionData``
+
+### Metrics Export
+
+- ``RTMPMetricsExporter``
+- ``RTMPPublisherStatistics``
+- ``PrometheusExporter``
+- ``StatsDExporter``
+
+### Server
+
+- ``RTMPServer``
+- ``RTMPServerConfiguration``
+- ``RTMPServerSession``
+- ``RTMPServerEvent``
+- ``RTMPServerSessionDelegate``
+- ``RTMPServerSecurityPolicy``
+- ``StreamKeyValidator``
+- ``AllowListStreamKeyValidator``
+- ``ClosureStreamKeyValidator``
+- ``RTMPStreamRelay``
+- ``RTMPStreamDVR``
+- ``RTMPConnectionRateLimiter``
+- ``RTMPServerAccessControl``
 
 ### Transport
 
@@ -155,5 +268,7 @@ await publisher.disconnect()
 ### Errors
 
 - ``AMF0Error``
+- ``AMF3EncodingError``
+- ``AMF3DecodingError``
 - ``ChunkError``
 - ``FLVError``

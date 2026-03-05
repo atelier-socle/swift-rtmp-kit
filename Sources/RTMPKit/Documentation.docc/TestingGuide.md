@@ -8,7 +8,7 @@ Use the mock server for manual testing and run the unit test suite.
 
 ## Overview
 
-RTMPKit includes a Python mock RTMP server for manual CLI testing and a comprehensive unit test suite with 1254 tests. This guide covers setting up the mock server, running test scenarios, and measuring code coverage.
+RTMPKit includes a Python mock RTMP server for manual CLI testing and a comprehensive unit test suite with 2103 tests across 301 suites. This guide covers setting up the mock server, running test scenarios, and measuring code coverage.
 
 ### Mock RTMP Server
 
@@ -25,34 +25,34 @@ python3 Scripts/mock-rtmp-server.py
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--port` | `1935` | Listen port |
-| `--mode` | `default` | Server mode |
 | `--verbose` | `false` | Verbose logging |
+| `--enhanced` | `false` | Enable Enhanced RTMP codec negotiation |
+| `--key` | (none) | Required stream key (reject others) |
+| `--auth-user` | (none) | Required auth username |
+| `--auth-pass` | (none) | Required auth password |
+| `--fail` | (none) | Simulate failure: `handshake`, `connect`, `publish` |
+| `--rate-limit` | (none) | Max connections per second |
 
 ### Server Modes
 
-| Mode | Description |
-|------|-------------|
-| `default` | Accept connections and publish commands |
-| `enhanced-rtmp` | Accept connections with Enhanced RTMP codec negotiation |
-| `reject-connect` | Reject the RTMP connect command |
-| `reject-publish` | Accept connect, reject publish |
-| `bad-name` | Accept connect, reject publish with BadName |
-
 ```bash
-# Default mode
+# Default mode — accept all connections
 python3 Scripts/mock-rtmp-server.py --port 1935
 
 # Enhanced RTMP mode (returns fourCcList in connect response)
-python3 Scripts/mock-rtmp-server.py --mode enhanced-rtmp
+python3 Scripts/mock-rtmp-server.py --port 1935 --enhanced
 
-# Simulate connect rejection
-python3 Scripts/mock-rtmp-server.py --mode reject-connect
+# Require stream key
+python3 Scripts/mock-rtmp-server.py --port 1935 --key myStreamKey
 
-# Simulate publish rejection
-python3 Scripts/mock-rtmp-server.py --mode reject-publish
+# Adobe authentication
+python3 Scripts/mock-rtmp-server.py --port 1935 --auth-user admin --auth-pass s3cr3t
+
+# Simulate connect failure
+python3 Scripts/mock-rtmp-server.py --port 1935 --fail connect
 
 # Verbose logging
-python3 Scripts/mock-rtmp-server.py --verbose
+python3 Scripts/mock-rtmp-server.py --port 1935 --verbose
 ```
 
 ### Testing Scenarios
@@ -140,11 +140,11 @@ Run the full test suite:
 swift test
 ```
 
-The test suite uses Swift Testing (not XCTest) with 1254 tests across 162 suites covering the complete API surface.
+The test suite uses Swift Testing (not XCTest) with 2103 tests across 301 suites covering the complete API surface.
 
 ### Showcase Tests
 
-The 9 showcase test suites serve as reference implementations for RTMPKit usage patterns:
+The 23 showcase test suites serve as reference implementations for RTMPKit usage patterns:
 
 | Suite | Description |
 |-------|-------------|
@@ -157,6 +157,20 @@ The 9 showcase test suites serve as reference implementations for RTMPKit usage 
 | `ChunkStreamShowcaseTests` | Chunk multiplexing, assembly, extended timestamps |
 | `HandshakeShowcaseTests` | Handshake lifecycle, validation, state machine |
 | `AMF0ShowcaseTests` | AMF0 encoding/decoding, all value types |
+| `AMF3ShowcaseTests` | AMF3 types, reference tables, RTMP type-17 |
+| `AdaptiveBitrateShowcaseTests` | ABR policies, network monitor, frame dropping |
+| `AuthenticationShowcaseTests` | Simple, token, Adobe challenge/response auth |
+| `BandwidthProbeShowcaseTests` | Probe results, quality selection, publisher integration |
+| `ConnectionQualityShowcaseTests` | Quality scoring, grades, reports, warnings |
+| `FLVCodecProbeShowcaseTests` | Codec auto-detection, Enhanced RTMP auto-enable |
+| `MetadataShowcaseTests` | StreamMetadata, timed metadata, cue points, captions |
+| `MetricsExportShowcaseTests` | Prometheus, StatsD, publisher/server metrics |
+| `MultiPublisherShowcaseTests` | Multi-destination, failure policies, hot add/remove |
+| `PlatformPresetsShowcaseTests` | Instagram, TikTok, Rumble, registry lookup |
+| `RTMPServerShowcaseTests` | Server lifecycle, session management |
+| `RTMPServerAdvancedShowcaseTests` | Stream key validation, relay, DVR |
+| `RTMPServerSecurityShowcaseTests` | Access control, rate limiting, security policies |
+| `StreamRecordingShowcaseTests` | FLV recording, segmentation, publisher integration |
 
 ### Code Coverage
 
@@ -172,7 +186,7 @@ xcrun llvm-cov report \
     -ignore-filename-regex "Tests/"
 ```
 
-The current coverage target is 96%+ for RTMPKit sources.
+The current coverage target is 97%+ for RTMPKit sources.
 
 ## Next Steps
 

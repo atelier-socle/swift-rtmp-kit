@@ -12,7 +12,7 @@ Add RTMPKit to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/atelier-socle/swift-rtmp-kit.git", from: "0.1.0")
+    .package(url: "https://github.com/atelier-socle/swift-rtmp-kit.git", from: "0.2.0")
 ]
 ```
 
@@ -57,7 +57,7 @@ try await publisher.sendVideo(naluData, timestamp: 0, isKeyframe: true)
 await publisher.disconnect()
 ```
 
-Platform presets configure the server URL, TLS, chunk size, and Enhanced RTMP settings automatically. Available presets: Twitch, YouTube, Facebook, and Kick.
+Platform presets configure the server URL, TLS, chunk size, and Enhanced RTMP settings automatically. Available presets: Twitch, YouTube, Facebook, Kick, Instagram, TikTok, and more.
 
 ### Custom Server Configuration
 
@@ -108,8 +108,17 @@ do {
 }
 ```
 
+### What's New in 0.2.0
+
+RTMPKit 0.2.0 adds adaptive bitrate, multi-destination publishing, RTMP authentication, stream recording, bandwidth probing, connection quality scoring, dynamic metadata, AMF3 encoding, FLV codec auto-detection, Prometheus/StatsD metrics export, and an RTMP ingest server. See the topic guides for details.
+
 ## Next Steps
 
 - <doc:StreamingGuide> — Complete streaming configuration and lifecycle
 - <doc:PlatformPresetsGuide> — Twitch, YouTube, Facebook, and Kick presets
 - <doc:EnhancedRTMPGuide> — HEVC, AV1, VP9, Opus via Enhanced RTMP v2
+- <doc:AdaptiveBitrateGuide> — ABR policies, network monitoring, frame dropping
+- <doc:MultiDestinationGuide> — Stream to multiple servers simultaneously
+- <doc:AuthenticationGuide> — Simple, token, and Adobe challenge/response auth
+- <doc:RecordingGuide> — Record live streams to FLV
+- <doc:CLIReference> — Full CLI command reference
