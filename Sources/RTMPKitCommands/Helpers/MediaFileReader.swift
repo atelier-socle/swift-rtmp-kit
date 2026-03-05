@@ -2,6 +2,7 @@
 // Copyright 2026 Atelier Socle SAS
 
 import Foundation
+import RTMPKit
 
 /// Reads FLV files and extracts audio/video tags for publishing.
 ///
@@ -91,13 +92,13 @@ public struct MediaFileReader: Sendable {
     }
 
     /// The raw file data.
-    private let fileData: [UInt8]
+    internal let fileData: [UInt8]
 
     /// The parsed FLV header info.
     public let header: FLVFileInfo
 
     /// Data offset after the FLV header.
-    private let dataOffset: Int
+    internal let dataOffset: Int
 
     /// Open an FLV file for reading.
     ///
@@ -144,6 +145,13 @@ public struct MediaFileReader: Sendable {
         self.fileData = bytes
         // Skip the header + first previous tag size (4 bytes)
         self.dataOffset = headerOffset + 4
+    }
+
+    /// Detected codec information from the FLV file.
+    ///
+    /// Probes the first audio and video tags to determine the codecs used.
+    public var codecInfo: FLVCodecInfo {
+        FLVCodecProbe.probe(data: fileData, dataOffset: dataOffset)
     }
 
     /// Read all tags from the FLV file.

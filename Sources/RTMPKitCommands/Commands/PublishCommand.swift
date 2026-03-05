@@ -63,7 +63,8 @@ public struct PublishCommand: AsyncParsableCommand {
 
     /// Disable Enhanced RTMP.
     @Flag(
-        name: .long, help: "Disable Enhanced RTMP negotiation"
+        name: .long,
+        help: "Disable Enhanced RTMP v2 (force legacy mode, not recommended for HEVC/AV1/VP9)"
     )
     public var noEnhancedRTMP: Bool = false
 
@@ -134,8 +135,6 @@ public struct PublishCommand: AsyncParsableCommand {
     public mutating func run() async throws {
         let display = ProgressDisplay()
 
-        let destinations = try buildDestinations()
-
         let reader: MediaFileReader
         do {
             reader = try MediaFileReader(path: file)
@@ -151,13 +150,34 @@ public struct PublishCommand: AsyncParsableCommand {
             throw ExitCode.failure
         }
 
+        let codecInfo = reader.codecInfo
+
         if !quiet {
             display.showStatus("File: \(file)")
+            if codecInfo.videoCodec.requiresEnhancedRTMP {
+                display.showStatus(
+                    "Video: \(codecInfo.videoCodec.displayName)"
+                        + " — Enhanced RTMP v2 will be used"
+                )
+            } else {
+                display.showStatus(
+                    "Video: \(codecInfo.videoCodec.displayName)"
+                )
+            }
             display.showStatus(
-                "Audio: \(reader.header.hasAudio), "
-                    + "Video: \(reader.header.hasVideo)"
+                "Audio: \(codecInfo.audioCodec.displayName)"
             )
         }
+
+        if noEnhancedRTMP && codecInfo.videoCodec.requiresEnhancedRTMP {
+            display.showWarning(
+                "Enhanced RTMP disabled —"
+                    + " \(codecInfo.videoCodec.displayName) stream"
+                    + " may not be supported by server"
+            )
+        }
+
+        let destinations = try buildDestinations(codecInfo: codecInfo)
 
         if destinations.count == 1 {
             try await runSingleDestination(
@@ -177,11 +197,18 @@ public struct PublishCommand: AsyncParsableCommand {
     // MARK: - Configuration
 
     /// Build the list of all publishing destinations.
-    func buildDestinations() throws -> [PublishDestination] {
+    func buildDestinations(
+        codecInfo: FLVCodecInfo = FLVCodecInfo(
+            videoCodec: .unknown, audioCodec: .unknown
+        )
+    ) throws -> [PublishDestination] {
         var destinations: [PublishDestination] = []
+        let useEnhanced = resolveEnhancedRTMP(codecInfo: codecInfo)
 
         if url != nil || preset != nil {
-            let config = try buildConfiguration()
+            let config = try buildConfiguration(
+                enhancedRTMP: useEnhanced
+            )
             destinations.append(
                 PublishDestination(id: "primary", configuration: config)
             )
@@ -196,7 +223,7 @@ public struct PublishCommand: AsyncParsableCommand {
                     url: config.url,
                     streamKey: key[i],
                     chunkSize: chunkSize,
-                    enhancedRTMP: !noEnhancedRTMP
+                    enhancedRTMP: useEnhanced
                 )
                 destID = "\(config.url)/\(key[i])"
             }
@@ -208,7 +235,10 @@ public struct PublishCommand: AsyncParsableCommand {
         return destinations
     }
 
-    func buildConfiguration() throws -> RTMPConfiguration {
+    func buildConfiguration(
+        enhancedRTMP: Bool? = nil
+    ) throws -> RTMPConfiguration {
+        let useEnhanced = enhancedRTMP ?? !noEnhancedRTMP
         guard let key = key.first else {
             throw ValidationError(
                 "--key is required with --url or --preset"
@@ -243,7 +273,7 @@ public struct PublishCommand: AsyncParsableCommand {
             url: url,
             streamKey: key,
             chunkSize: chunkSize,
-            enhancedRTMP: !noEnhancedRTMP
+            enhancedRTMP: useEnhanced
         )
         if let authUser, let authPass {
             config.authentication = .adobeChallenge(
@@ -251,6 +281,17 @@ public struct PublishCommand: AsyncParsableCommand {
             )
         }
         return config
+    }
+
+    /// Resolve whether Enhanced RTMP should be enabled.
+    ///
+    /// Auto-enables when non-H.264 codecs are detected, unless
+    /// `--no-enhanced-rtmp` is explicitly set.
+    func resolveEnhancedRTMP(codecInfo: FLVCodecInfo) -> Bool {
+        if noEnhancedRTMP {
+            return false
+        }
+        return codecInfo.videoCodec.requiresEnhancedRTMP
     }
 
     func parseIngestServer() -> TwitchIngestServer? {
@@ -396,6 +437,8 @@ extension PublishCommand {
     ) async throws {
         var tags = reader.tags()
         var baseTime: UInt64 = 0
+        var sentFirstAudio = false
+        var sentFirstVideo = false
 
         while let tag = tags.next() {
             if tag.timestamp > 0 {
@@ -411,18 +454,30 @@ extension PublishCommand {
             if tag.isScript {
                 await multi.sendRawDataMessage(tag.data)
             } else if tag.isAudio {
-                await multi.sendAudio(
-                    tag.data, timestamp: tag.timestamp
-                )
+                if !sentFirstAudio
+                    && Self.isAudioConfig(tag.data)
+                {
+                    await multi.sendAudioConfigPayload(tag.data)
+                    sentFirstAudio = true
+                } else {
+                    await multi.sendAudioPayload(
+                        tag.data, timestamp: tag.timestamp
+                    )
+                }
             } else if tag.isVideo {
-                let isKeyframe =
-                    !tag.data.isEmpty
-                    && (tag.data[0] & 0xF0) == 0x10
-                await multi.sendVideo(
-                    tag.data,
-                    timestamp: tag.timestamp,
-                    isKeyframe: isKeyframe
-                )
+                if !sentFirstVideo
+                    && Self.isVideoConfig(tag.data)
+                {
+                    await multi.sendVideoConfigPayload(tag.data)
+                    sentFirstVideo = true
+                } else {
+                    let isKF = Self.isKeyframe(tag.data)
+                    await multi.sendVideoPayload(
+                        tag.data,
+                        timestamp: tag.timestamp,
+                        isKeyframe: isKF
+                    )
+                }
             }
 
             if display != nil {
@@ -464,30 +519,32 @@ extension PublishCommand {
             if tag.isScript {
                 try await publisher.sendDataMessagePayload(tag.data)
             } else if tag.isAudio {
-                if !sentFirstAudio && !tag.data.isEmpty {
-                    try await publisher.sendAudioConfig(
+                if !sentFirstAudio
+                    && Self.isAudioConfig(tag.data)
+                {
+                    try await publisher.sendAudioConfigPayload(
                         tag.data
                     )
                     sentFirstAudio = true
                 } else {
-                    try await publisher.sendAudio(
+                    try await publisher.sendAudioPayload(
                         tag.data, timestamp: tag.timestamp
                     )
                 }
             } else if tag.isVideo {
-                if !sentFirstVideo && !tag.data.isEmpty {
-                    try await publisher.sendVideoConfig(
+                if !sentFirstVideo
+                    && Self.isVideoConfig(tag.data)
+                {
+                    try await publisher.sendVideoConfigPayload(
                         tag.data
                     )
                     sentFirstVideo = true
                 } else {
-                    let isKeyframe =
-                        !tag.data.isEmpty
-                        && (tag.data[0] & 0xF0) == 0x10
-                    try await publisher.sendVideo(
+                    let isKF = Self.isKeyframe(tag.data)
+                    try await publisher.sendVideoPayload(
                         tag.data,
                         timestamp: tag.timestamp,
-                        isKeyframe: isKeyframe
+                        isKeyframe: isKF
                     )
                 }
             }
@@ -502,5 +559,53 @@ extension PublishCommand {
                 )
             }
         }
+    }
+
+    // MARK: - FLV Tag Detection Helpers
+
+    /// Detect if a video tag payload is a keyframe.
+    ///
+    /// Handles both legacy AVC (upper nibble = 1) and Enhanced RTMP
+    /// (lower nibble = keyFrame) formats.
+    static func isKeyframe(_ data: [UInt8]) -> Bool {
+        guard let byte0 = data.first else { return false }
+        if ExVideoHeader.isExHeader(byte0) {
+            return (byte0 & 0x0F) == VideoFrameType.keyFrame.rawValue
+        }
+        return (byte0 & 0xF0) == 0x10
+    }
+
+    /// Detect if a video tag payload is a config/sequence header.
+    ///
+    /// Legacy AVC: byte[1] == 0x00 (AVCPacketType == sequence header).
+    /// Enhanced RTMP: packetType == sequenceStart in byte 0.
+    static func isVideoConfig(_ data: [UInt8]) -> Bool {
+        guard !data.isEmpty else { return false }
+        let byte0 = data[0]
+        if ExVideoHeader.isExHeader(byte0) {
+            let packetType = (byte0 >> 4) & 0x07
+            return packetType == ExVideoPacketType.sequenceStart.rawValue
+        }
+        return data.count >= 2 && data[1] == 0x00
+    }
+
+    /// Detect if an audio tag payload is a config/sequence header.
+    ///
+    /// Legacy AAC: SoundFormat=10 (upper nibble = 0xA) AND byte[1] == 0x00.
+    /// Enhanced RTMP: non-legacy SoundFormat with bit 7 set, packetType == sequenceStart.
+    static func isAudioConfig(_ data: [UInt8]) -> Bool {
+        guard !data.isEmpty else { return false }
+        let byte0 = data[0]
+        // Check legacy AAC first (SoundFormat=10, upper nibble = 0xA).
+        // 0xAF also has bit 7 set, so we must check legacy before enhanced.
+        let soundFormat = (byte0 >> 4) & 0x0F
+        if soundFormat == 10 {
+            return data.count >= 2 && data[1] == 0x00
+        }
+        if ExAudioHeader.isExHeader(byte0) {
+            let packetType = (byte0 >> 3) & 0x0F
+            return packetType == ExAudioPacketType.sequenceStart.rawValue
+        }
+        return false
     }
 }

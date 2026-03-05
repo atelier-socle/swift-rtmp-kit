@@ -70,13 +70,13 @@ public actor MultiPublisher {
 
     // MARK: - Private State
 
-    private var handles: [String: DestinationHandle] = [:]
+    internal var handles: [String: DestinationHandle] = [:]
     private let transportFactory: TransportFactory
     private let eventContinuation: AsyncStream<MultiPublisherEvent>.Continuation
 
     // MARK: - Internal Types
 
-    private struct DestinationHandle {
+    internal struct DestinationHandle {
         let destination: PublishDestination
         let publisher: RTMPPublisher
         var eventTask: Task<Void, Never>?
@@ -444,7 +444,7 @@ public actor MultiPublisher {
         }
     }
 
-    private func updateAndEmitStatistics() async {
+    internal func updateAndEmitStatistics() async {
         var perDest: [String: ConnectionStatistics] = [:]
         var totalBytes = 0
         var totalDropped = 0

@@ -70,13 +70,16 @@ MSG_AMF3_DATA        = 15   # NEW 0.2.0
 MSG_AMF0_COMMAND     = 20
 MSG_AMF3_COMMAND     = 17   # NEW 0.2.0
 
-AMF0_NUMBER      = 0x00
-AMF0_BOOLEAN     = 0x01
-AMF0_STRING      = 0x02
-AMF0_OBJECT      = 0x03
-AMF0_NULL        = 0x05
-AMF0_ECMA_ARRAY  = 0x08
-AMF0_OBJECT_END  = 0x09
+AMF0_NUMBER       = 0x00
+AMF0_BOOLEAN      = 0x01
+AMF0_STRING       = 0x02
+AMF0_OBJECT       = 0x03
+AMF0_NULL         = 0x05
+AMF0_UNDEFINED    = 0x06
+AMF0_ECMA_ARRAY   = 0x08
+AMF0_OBJECT_END   = 0x09
+AMF0_STRICT_ARRAY = 0x0A
+AMF0_LONG_STRING  = 0x0C
 
 
 # ─── Colors ───────────────────────────────────────────────────────────
@@ -170,9 +173,17 @@ class AMF0Decoder:
             return self._decode_object_properties()
         elif marker == AMF0_NULL:
             return None
+        elif marker == AMF0_UNDEFINED:
+            return None
         elif marker == AMF0_ECMA_ARRAY:
             _count = struct.unpack('>I', self.read_bytes(4))[0]
             return self._decode_object_properties()
+        elif marker == AMF0_STRICT_ARRAY:
+            count = struct.unpack('>I', self.read_bytes(4))[0]
+            return [self.decode_value() for _ in range(count)]
+        elif marker == AMF0_LONG_STRING:
+            length = struct.unpack('>I', self.read_bytes(4))[0]
+            return self.read_bytes(length).decode('utf-8', errors='replace')
         else:
             return None
 

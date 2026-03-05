@@ -45,6 +45,11 @@ public struct ProgressDisplay: Sendable {
         print(ColorOutput.error("Error: \(message)"))
     }
 
+    /// Show a warning message.
+    public func showWarning(_ message: String) {
+        print(ColorOutput.warning("Warning: \(message)"))
+    }
+
     /// Show a success message.
     public func showSuccess(_ message: String) {
         print(ColorOutput.success(message))

@@ -174,26 +174,32 @@ public struct RecordCommand: AsyncParsableCommand {
             if tag.isScript {
                 try await publisher.sendDataMessagePayload(tag.data)
             } else if tag.isAudio {
-                if !sentFirstAudio && !tag.data.isEmpty {
-                    try await publisher.sendAudioConfig(tag.data)
+                if !sentFirstAudio
+                    && PublishCommand.isAudioConfig(tag.data)
+                {
+                    try await publisher.sendAudioConfigPayload(
+                        tag.data
+                    )
                     sentFirstAudio = true
                 } else {
-                    try await publisher.sendAudio(
+                    try await publisher.sendAudioPayload(
                         tag.data, timestamp: tag.timestamp
                     )
                 }
             } else if tag.isVideo {
-                if !sentFirstVideo && !tag.data.isEmpty {
-                    try await publisher.sendVideoConfig(tag.data)
+                if !sentFirstVideo
+                    && PublishCommand.isVideoConfig(tag.data)
+                {
+                    try await publisher.sendVideoConfigPayload(
+                        tag.data
+                    )
                     sentFirstVideo = true
                 } else {
-                    let isKeyframe =
-                        !tag.data.isEmpty
-                        && (tag.data[0] & 0xF0) == 0x10
-                    try await publisher.sendVideo(
+                    let isKF = PublishCommand.isKeyframe(tag.data)
+                    try await publisher.sendVideoPayload(
                         tag.data,
                         timestamp: tag.timestamp,
-                        isKeyframe: isKeyframe
+                        isKeyframe: isKF
                     )
                 }
             }
