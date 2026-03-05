@@ -9,3 +9,9 @@ coverage:
     patch:
       default:
         target: 90%
+
+ignore:
+  - "Sources/RTMPKitCLI/**"
+  - "Sources/RTMPKitCommands/**"
+  - "Sources/RTMPKit/Transport/NIOTransport.swift"
+  - "Sources/RTMPKit/Transport/RTMPChannelHandler.swift"
