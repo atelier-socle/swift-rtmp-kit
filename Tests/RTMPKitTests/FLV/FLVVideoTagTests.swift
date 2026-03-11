@@ -256,4 +256,5 @@ struct FLVVideoTagTests {
         let body = FLVVideoTag.enhancedSequenceStart(fourCC: .hevc, config: [])
         #expect(ExVideoHeader.isExHeader(body[0]))
     }
+
 }

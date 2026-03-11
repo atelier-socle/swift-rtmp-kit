@@ -143,4 +143,59 @@ struct FLVAudioTagTests {
         let body = FLVAudioTag.enhancedSequenceStart(fourCC: .opus, config: [])
         #expect(ExAudioHeader.isExHeader(body[0]))
     }
+
+    // MARK: - buildAACAudioSpecificConfig
+
+    @Test("AAC AudioSpecificConfig is 2 bytes")
+    func aacAudioSpecificConfigLength() {
+        let config = FLVAudioTag.buildAACAudioSpecificConfig(sampleRate: 44100, channels: 2)
+        #expect(config.count == 2)
+    }
+
+    @Test("AAC AudioSpecificConfig for 44100 Hz stereo is 0x12 0x10")
+    func aacAudioSpecificConfig44100Stereo() {
+        let config = FLVAudioTag.buildAACAudioSpecificConfig(sampleRate: 44100, channels: 2)
+        // audioObjectType=2 (AAC-LC): 5 bits = 00010
+        // samplingFrequencyIndex=4 (44100): 4 bits = 0100
+        // channelConfiguration=2: 4 bits = 0010
+        // remaining 3 bits = 000
+        // 00010_0100 = 0x12, 0010_0000 = 0x10... wait
+        // Bits: 00010 0100 0010 000 = 0001_0010 0001_0000 = 0x12 0x10
+        #expect(config[0] == 0x12)
+        #expect(config[1] == 0x10)
+    }
+
+    @Test("AAC AudioSpecificConfig for 48000 Hz stereo is 0x11 0x90")
+    func aacAudioSpecificConfig48000Stereo() {
+        let config = FLVAudioTag.buildAACAudioSpecificConfig(sampleRate: 48000, channels: 2)
+        // audioObjectType=2: 00010
+        // samplingFrequencyIndex=3 (48000): 0011
+        // channelConfiguration=2: 0010
+        // remaining: 000
+        // 00010_0011 = 0x11... wait: 0001_0001 = 0x11, 1001_0000 = 0x90
+        #expect(config[0] == 0x11)
+        #expect(config[1] == 0x90)
+    }
+
+    @Test("AAC AudioSpecificConfig for 44100 Hz mono")
+    func aacAudioSpecificConfig44100Mono() {
+        let config = FLVAudioTag.buildAACAudioSpecificConfig(sampleRate: 44100, channels: 1)
+        // audioObjectType=2: 00010
+        // samplingFrequencyIndex=4: 0100
+        // channelConfiguration=1: 0001
+        // remaining: 000
+        // 00010_0100 0001_0000... wait: 0001_0010 0000_1000 = 0x12 0x08
+        #expect(config[0] == 0x12)
+        #expect(config[1] == 0x08)
+    }
+
+    @Test("AAC AudioSpecificConfig feeds correctly into aacSequenceHeader")
+    func aacAudioSpecificConfigIntegration() {
+        let config = FLVAudioTag.buildAACAudioSpecificConfig(sampleRate: 44100, channels: 2)
+        let body = FLVAudioTag.aacSequenceHeader(config)
+        #expect(body.count == 4)
+        #expect(body[0] == 0xAF)
+        #expect(body[1] == 0x00)
+        #expect(Array(body[2...]) == config)
+    }
 }

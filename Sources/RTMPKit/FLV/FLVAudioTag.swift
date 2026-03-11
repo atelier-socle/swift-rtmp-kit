@@ -77,6 +77,41 @@ public enum FLVAudioTag: Sendable {
         return [header] + fourCC.encode()
     }
 
+    // MARK: - Configuration Record Builders
+
+    /// Builds a 2-byte AAC AudioSpecificConfig (ISO 14496-3 §1.6.2.1) for AAC-LC.
+    ///
+    /// Layout (16 bits):
+    /// ```
+    /// audioObjectType      (5 bits) = 2 (AAC-LC)
+    /// samplingFrequencyIndex (4 bits)
+    /// channelConfiguration  (4 bits)
+    /// frameLengthFlag       (1 bit)  = 0 (1024 samples)
+    /// dependsOnCoreCoder    (1 bit)  = 0
+    /// extensionFlag         (1 bit)  = 0
+    /// ```
+    ///
+    /// The result is suitable for passing to ``aacSequenceHeader(_:)`` or
+    /// ``enhancedSequenceStart(fourCC:config:)`` with ``FourCC/mp4a``.
+    ///
+    /// - Parameters:
+    ///   - sampleRate: Audio sample rate in Hz (e.g. 44100, 48000).
+    ///   - channels: Number of audio channels (1 = mono, 2 = stereo).
+    /// - Returns: The 2-byte AudioSpecificConfig.
+    public static func buildAACAudioSpecificConfig(
+        sampleRate: Int,
+        channels: Int
+    ) -> [UInt8] {
+        let freqIndex = aacSamplingFrequencyIndex(for: sampleRate)
+        // audioObjectType = 2 (AAC-LC), 5 bits
+        // samplingFrequencyIndex, 4 bits
+        // channelConfiguration, 4 bits
+        // frameLengthFlag(1) + dependsOnCoreCoder(1) + extensionFlag(1) = 0, 3 bits
+        let byte0 = UInt8(0x10 | ((freqIndex >> 1) & 0x07))
+        let byte1 = UInt8(((freqIndex & 0x01) << 7) | ((UInt8(channels) & 0x0F) << 3))
+        return [byte0, byte1]
+    }
+
     // MARK: - Private
 
     /// Build enhanced audio byte 0: `[1:1][packetType:4][channelOrder:1][reserved:2]`.
@@ -85,5 +120,18 @@ public enum FLVAudioTag: Sendable {
         channelOrder: UInt8 = 0
     ) -> UInt8 {
         0x80 | ((packetType & 0x0F) << 3) | ((channelOrder & 0x01) << 2)
+    }
+
+    /// ISO 14496-3 sampling frequency index table.
+    private static let aacSamplingFrequencies: [Int: UInt8] = [
+        96000: 0x0, 88200: 0x1, 64000: 0x2, 48000: 0x3,
+        44100: 0x4, 32000: 0x5, 24000: 0x6, 22050: 0x7,
+        16000: 0x8, 12000: 0x9, 11025: 0xA, 8000: 0xB,
+        7350: 0xC
+    ]
+
+    /// Map a sample rate in Hz to the ISO 14496-3 sampling frequency index.
+    private static func aacSamplingFrequencyIndex(for sampleRate: Int) -> UInt8 {
+        aacSamplingFrequencies[sampleRate] ?? 0x4  // Default to 44100 Hz
     }
 }
