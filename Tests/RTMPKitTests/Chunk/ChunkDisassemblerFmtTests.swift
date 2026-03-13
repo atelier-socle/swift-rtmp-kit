@@ -167,4 +167,85 @@ struct ChunkDisassemblerFmtTests {
         let fmt = (bytes[0] >> 6) & 0x03
         #expect(fmt == 0)
     }
+
+    @Test("non-monotonic timestamp falls back to fmt0")
+    func nonMonotonicTimestampFmt0() {
+        var dis = ChunkDisassembler(chunkSize: 4096)
+        // First message at t=1000
+        let msg1 = RTMPMessage(
+            typeID: RTMPMessage.typeIDVideo,
+            streamID: 1, timestamp: 1000, payload: [0x01]
+        )
+        _ = dis.disassemble(message: msg1, chunkStreamID: .video)
+
+        // Second message at t=967 (B-frame reordering: PTS < previous PTS)
+        let msg2 = RTMPMessage(
+            typeID: RTMPMessage.typeIDVideo,
+            streamID: 1, timestamp: 967, payload: [0x02]
+        )
+        let bytes = dis.disassemble(message: msg2, chunkStreamID: .video)
+        let fmt = (bytes[0] >> 6) & 0x03
+        #expect(fmt == 0)  // full header — delta not calculable
+        // fmt0 carries absolute timestamp, not delta
+        let ts =
+            UInt32(bytes[1]) << 16
+            | UInt32(bytes[2]) << 8
+            | UInt32(bytes[3])
+        #expect(ts == 967)
+    }
+
+    @Test("non-monotonic timestamp resets tracking, next monotonic message can use fmt1/fmt2")
+    func nonMonotonicThenMonotonicResumes() {
+        var dis = ChunkDisassembler(chunkSize: 4096)
+        let msg1 = RTMPMessage(
+            typeID: RTMPMessage.typeIDVideo,
+            streamID: 1, timestamp: 1000, payload: [0x01]
+        )
+        _ = dis.disassemble(message: msg1, chunkStreamID: .video)
+
+        // B-frame: timestamp goes backwards → fmt0
+        let msg2 = RTMPMessage(
+            typeID: RTMPMessage.typeIDVideo,
+            streamID: 1, timestamp: 967, payload: [0x02]
+        )
+        _ = dis.disassemble(message: msg2, chunkStreamID: .video)
+
+        // Next frame forward from 967 → should resume compression
+        let msg3 = RTMPMessage(
+            typeID: RTMPMessage.typeIDVideo,
+            streamID: 1, timestamp: 1033, payload: [0x03]
+        )
+        let bytes = dis.disassemble(message: msg3, chunkStreamID: .video)
+        let fmt = (bytes[0] >> 6) & 0x03
+        #expect(fmt == 2)  // timestampOnly — same type, same length
+        let delta =
+            UInt32(bytes[1]) << 16
+            | UInt32(bytes[2]) << 8
+            | UInt32(bytes[3])
+        #expect(delta == 66)  // 1033 - 967
+    }
+
+    @Test("equal timestamp does not trigger non-monotonic fallback")
+    func equalTimestampAllowsCompression() {
+        var dis = ChunkDisassembler(chunkSize: 4096)
+        let msg1 = RTMPMessage(
+            typeID: RTMPMessage.typeIDVideo,
+            streamID: 1, timestamp: 500, payload: [0x01]
+        )
+        _ = dis.disassemble(message: msg1, chunkStreamID: .video)
+
+        // Same timestamp (delta = 0) is valid
+        let msg2 = RTMPMessage(
+            typeID: RTMPMessage.typeIDVideo,
+            streamID: 1, timestamp: 500, payload: [0x02]
+        )
+        let bytes = dis.disassemble(message: msg2, chunkStreamID: .video)
+        let fmt = (bytes[0] >> 6) & 0x03
+        #expect(fmt == 2)  // timestampOnly — delta 0 is valid
+        let delta =
+            UInt32(bytes[1]) << 16
+            | UInt32(bytes[2]) << 8
+            | UInt32(bytes[3])
+        #expect(delta == 0)
+    }
 }

@@ -55,12 +55,11 @@ public struct ChunkDisassembler: Sendable {
             csid: csid, message: message, payloadSize: payloadSize
         )
         let timestampOrDelta: UInt32
-        if fmt == .full {
+        let lastTS = streams[csid]?.lastTimestamp ?? 0
+        if fmt == .full || message.timestamp < lastTS {
             timestampOrDelta = message.timestamp
         } else {
-            timestampOrDelta =
-                message.timestamp
-                - (streams[csid]?.lastTimestamp ?? 0)
+            timestampOrDelta = message.timestamp - lastTS
         }
 
         let firstHeader = ChunkHeader(
@@ -128,6 +127,13 @@ public struct ChunkDisassembler: Sendable {
 
         // Stream ID changed → must send full header.
         guard prev.lastMessageStreamID == message.streamID else {
+            return .full
+        }
+
+        // Non-monotonic timestamp → full header (no valid delta).
+        // This happens with B-frames (H.264 High profile) where PTS
+        // can go backwards relative to the previous message on this CSID.
+        guard message.timestamp >= prev.lastTimestamp else {
             return .full
         }
 
