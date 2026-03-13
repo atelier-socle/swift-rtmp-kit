@@ -4,8 +4,11 @@
 /// Splits RTMP messages into chunks for sending.
 ///
 /// The disassembler handles chunk size limits and fmt selection.
-/// For the first chunk of each message, it uses fmt 0 (full header).
-/// Continuation chunks use fmt 3 (zero-length message header).
+/// It uses header compression per the RTMP specification:
+/// - **fmt 0** (full, 11 bytes): first message on a CSID or stream ID change.
+/// - **fmt 1** (same-stream, 7 bytes): same stream ID, carries delta + length + type.
+/// - **fmt 2** (timestamp-only, 3 bytes): same stream ID, length, and type as previous.
+/// - **fmt 3** (continuation, 0 bytes): continuation chunks within a single message.
 ///
 /// ## Usage
 ///
@@ -31,8 +34,9 @@ public struct ChunkDisassembler: Sendable {
 
     /// Splits a message into chunks and returns serialized bytes.
     ///
-    /// The first chunk uses fmt 0 (full header). If the message payload
-    /// exceeds ``chunkSize``, subsequent continuation chunks use fmt 3.
+    /// Selects the most compact chunk header format based on the previous
+    /// message sent on the same chunk stream ID, then splits the payload
+    /// into ``chunkSize``-bounded chunks.
     ///
     /// - Parameters:
     ///   - message: The RTMP message to split.
@@ -43,14 +47,26 @@ public struct ChunkDisassembler: Sendable {
         chunkStreamID: ChunkStreamID
     ) -> [UInt8] {
         let csid = chunkStreamID.value
-        var buffer: [UInt8] = []
         let payloadSize = message.payload.count
+        var buffer: [UInt8] = []
         buffer.reserveCapacity(payloadSize + 18)
 
+        let fmt = selectFormat(
+            csid: csid, message: message, payloadSize: payloadSize
+        )
+        let timestampOrDelta: UInt32
+        if fmt == .full {
+            timestampOrDelta = message.timestamp
+        } else {
+            timestampOrDelta =
+                message.timestamp
+                - (streams[csid]?.lastTimestamp ?? 0)
+        }
+
         let firstHeader = ChunkHeader(
-            format: .full,
+            format: fmt,
             chunkStreamID: csid,
-            timestamp: message.timestamp,
+            timestamp: timestampOrDelta,
             messageLength: UInt32(payloadSize),
             messageTypeID: message.typeID,
             messageStreamID: message.streamID
@@ -66,7 +82,7 @@ public struct ChunkDisassembler: Sendable {
             let contHeader = ChunkHeader(
                 format: .continuation,
                 chunkStreamID: csid,
-                timestamp: message.timestamp,
+                timestamp: timestampOrDelta,
                 messageLength: UInt32(payloadSize),
                 messageTypeID: message.typeID,
                 messageStreamID: message.streamID
@@ -74,11 +90,16 @@ public struct ChunkDisassembler: Sendable {
             buffer.append(contentsOf: contHeader.serialize())
             let remaining = payloadSize - offset
             let thisChunkSize = min(cs, remaining)
-            buffer.append(contentsOf: message.payload[offset..<(offset + thisChunkSize)])
+            buffer.append(
+                contentsOf: message.payload[offset..<(offset + thisChunkSize)]
+            )
             offset += thisChunkSize
         }
 
-        updateStreamState(csid: csid, header: firstHeader)
+        updateStreamState(
+            csid: csid, header: firstHeader,
+            absoluteTimestamp: message.timestamp
+        )
         return buffer
     }
 
@@ -96,11 +117,42 @@ public struct ChunkDisassembler: Sendable {
         streams.removeAll()
     }
 
-    private mutating func updateStreamState(csid: UInt32, header: ChunkHeader) {
+    // MARK: - Private
+
+    private func selectFormat(
+        csid: UInt32, message: RTMPMessage, payloadSize: Int
+    ) -> ChunkFormat {
+        guard let prev = streams[csid] else {
+            return .full
+        }
+
+        // Stream ID changed → must send full header.
+        guard prev.lastMessageStreamID == message.streamID else {
+            return .full
+        }
+
+        let sameLength = prev.lastMessageLength == UInt32(payloadSize)
+        let sameType = prev.lastMessageTypeID == message.typeID
+
+        // Same stream ID + same length + same type → fmt 2 (timestamp-only).
+        if sameLength && sameType {
+            return .timestampOnly
+        }
+
+        // Same stream ID, but length or type differs → fmt 1 (same-stream).
+        return .sameStream
+    }
+
+    private mutating func updateStreamState(
+        csid: UInt32, header: ChunkHeader, absoluteTimestamp: UInt32
+    ) {
         if streams[csid] == nil {
             streams[csid] = ChunkStream(chunkStreamID: csid)
         }
-        streams[csid]?.updateFromHeader(header)
+        // Store the absolute timestamp (not the delta) for next comparison.
+        var resolved = header
+        resolved.timestamp = absoluteTimestamp
+        streams[csid]?.updateFromHeader(resolved)
         streams[csid]?.updateDelta(header.timestamp)
     }
 }

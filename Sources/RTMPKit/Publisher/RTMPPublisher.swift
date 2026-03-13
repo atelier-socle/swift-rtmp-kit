@@ -79,6 +79,10 @@ public actor RTMPPublisher {
     internal var metricsTask: Task<Void, Never>?
     internal var metricsLabels: [String: String] = [:]
 
+    // MARK: - A/V Interleaving
+
+    internal var interleaver = AVInterleaver()
+
     /// Creates a publisher with the default NIO transport.
     public init() {
         let (stream, continuation) = AsyncStream<RTMPEvent>.makeStream()
@@ -238,6 +242,10 @@ public actor RTMPPublisher {
         consecutiveDropCount = 0
         liveVideoBitrate = 3_000_000
 
+        // Drain any remaining interleaved A/V before closing.
+        try? await flushInterleaver()
+        interleaver.reset()
+
         if session.state == .publishing, let streamID = connection.streamID {
             let txn1 = connection.allocateTransactionID()
             let fcUnpub = RTMPCommand.fcUnpublish(
@@ -290,14 +298,16 @@ public actor RTMPPublisher {
                     congestionLevel: congestion
                 ) {
                     consecutiveDropCount += 1
-                    await abrMon.recordDroppedFrame()
                     monitor.recordDroppedFrame()
-                    await recordFrameDropForQuality()
+                    Task {
+                        await abrMon.recordDroppedFrame()
+                        await self.recordFrameDropForQuality()
+                    }
                     return
                 }
             }
             consecutiveDropCount = 0
-            await abrMon.recordSentFrame()
+            Task { await abrMon.recordSentFrame() }
         }
 
         let tagBody = FLVVideoTag.avcNALU(data, isKeyframe: isKeyframe)
@@ -306,18 +316,28 @@ public actor RTMPPublisher {
             streamID: connection.streamID ?? 1,
             timestamp: timestamp, payload: tagBody
         )
-        try await sendRTMPMessage(message, chunkStreamID: .video)
+        try await sendInterleavedAV(message, chunkStreamID: .video)
+
+        // Sync metrics (no actor hop)
         monitor.recordVideoFrameSent()
         monitor.recordBytesSent(
             UInt64(tagBody.count), at: monotonicNow()
         )
 
-        if let abrMon = abrMonitor {
-            await abrMon.recordBytesSent(tagBody.count, pendingBytes: 0)
-        }
-        await recordBytesForQuality(tagBody.count)
-        await recordSentFrameForQuality()
+        // Recording — must complete before stopRecording().
         await recordVideoFrame(data, timestamp: timestamp, isKeyframe: isKeyframe)
+
+        // Async monitoring fire-and-forget — keep off the critical send path.
+        let byteCount = tagBody.count
+        let abrMon = abrMonitor
+        Task { [weak self] in
+            guard let self else { return }
+            if let abrMon {
+                await abrMon.recordBytesSent(byteCount, pendingBytes: 0)
+            }
+            await self.recordBytesForQuality(byteCount)
+            await self.recordSentFrameForQuality()
+        }
     }
 
     /// Send an audio frame.
@@ -331,17 +351,27 @@ public actor RTMPPublisher {
             streamID: connection.streamID ?? 1,
             timestamp: timestamp, payload: tagBody
         )
-        try await sendRTMPMessage(message, chunkStreamID: .audio)
+        try await sendInterleavedAV(message, chunkStreamID: .audio)
+
+        // Sync metrics (no actor hop)
         monitor.recordAudioFrameSent()
         monitor.recordBytesSent(
             UInt64(tagBody.count), at: monotonicNow()
         )
 
-        if let abrMon = abrMonitor {
-            await abrMon.recordBytesSent(tagBody.count, pendingBytes: 0)
-        }
-        await recordBytesForQuality(tagBody.count)
+        // Recording — must complete before stopRecording().
         await recordAudioFrame(data, timestamp: timestamp)
+
+        // Async monitoring fire-and-forget — keep off the critical send path.
+        let byteCount = tagBody.count
+        let abrMon = abrMonitor
+        Task { [weak self] in
+            guard let self else { return }
+            if let abrMon {
+                await abrMon.recordBytesSent(byteCount, pendingBytes: 0)
+            }
+            await self.recordBytesForQuality(byteCount)
+        }
     }
 
     /// Send video decoder configuration (sequence header).

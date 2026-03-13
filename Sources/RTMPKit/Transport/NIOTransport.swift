@@ -242,8 +242,24 @@ public actor NIOTransport: RTMPTransportProtocol {
         let tlsMinVersion = configuration.tlsMinimumVersion
         let connectTimeoutSecs = Int64(configuration.connectTimeout)
 
+        let noDelay = configuration.tcpNoDelay
+        let rcvBuf = ChannelOptions.Types
+            .SocketOption(level: SOL_SOCKET, name: SO_RCVBUF)
+        let sndBuf = ChannelOptions.Types
+            .SocketOption(level: SOL_SOCKET, name: SO_SNDBUF)
+
         let bootstrap = ClientBootstrap(group: eventLoopGroup)
             .connectTimeout(.seconds(connectTimeoutSecs))
+            .channelOption(
+                ChannelOptions.socketOption(.so_reuseaddr),
+                value: 1
+            )
+            .channelOption(
+                ChannelOptions.socketOption(.tcp_nodelay),
+                value: noDelay ? 1 : 0
+            )
+            .channelOption(rcvBuf, value: .init(configuration.receiveBufferSize))
+            .channelOption(sndBuf, value: .init(configuration.sendBufferSize))
             .channelInitializer { channel in
                 let handler = RTMPChannelHandler(
                     onMessage: { message in

@@ -36,14 +36,16 @@ extension RTMPPublisher {
                     congestionLevel: congestion
                 ) {
                     consecutiveDropCount += 1
-                    await abrMon.recordDroppedFrame()
                     monitor.recordDroppedFrame()
-                    await recordFrameDropForQuality()
+                    Task {
+                        await abrMon.recordDroppedFrame()
+                        await self.recordFrameDropForQuality()
+                    }
                     return
                 }
             }
             consecutiveDropCount = 0
-            await abrMon.recordSentFrame()
+            Task { await abrMon.recordSentFrame() }
         }
 
         let message = RTMPMessage(
@@ -51,20 +53,30 @@ extension RTMPPublisher {
             streamID: connection.streamID ?? 1,
             timestamp: timestamp, payload: payload
         )
-        try await sendRTMPMessage(message, chunkStreamID: .video)
+        try await sendInterleavedAV(message, chunkStreamID: .video)
+
+        // Sync metrics (no actor hop)
         monitor.recordVideoFrameSent()
         monitor.recordBytesSent(
             UInt64(payload.count), at: monotonicNow()
         )
 
-        if let abrMon = abrMonitor {
-            await abrMon.recordBytesSent(payload.count, pendingBytes: 0)
-        }
-        await recordBytesForQuality(payload.count)
-        await recordSentFrameForQuality()
+        // Recording — must complete before stopRecording().
         await recordVideoFrame(
             payload, timestamp: timestamp, isKeyframe: isKeyframe
         )
+
+        // Async monitoring fire-and-forget
+        let byteCount = payload.count
+        let abrMon = abrMonitor
+        Task { [weak self] in
+            guard let self else { return }
+            if let abrMon {
+                await abrMon.recordBytesSent(byteCount, pendingBytes: 0)
+            }
+            await self.recordBytesForQuality(byteCount)
+            await self.recordSentFrameForQuality()
+        }
     }
 
     /// Send a raw video config payload (already formatted as FLV sequence header).
@@ -104,17 +116,27 @@ extension RTMPPublisher {
             streamID: connection.streamID ?? 1,
             timestamp: timestamp, payload: payload
         )
-        try await sendRTMPMessage(message, chunkStreamID: .audio)
+        try await sendInterleavedAV(message, chunkStreamID: .audio)
+
+        // Sync metrics (no actor hop)
         monitor.recordAudioFrameSent()
         monitor.recordBytesSent(
             UInt64(payload.count), at: monotonicNow()
         )
 
-        if let abrMon = abrMonitor {
-            await abrMon.recordBytesSent(payload.count, pendingBytes: 0)
-        }
-        await recordBytesForQuality(payload.count)
+        // Recording — must complete before stopRecording().
         await recordAudioFrame(payload, timestamp: timestamp)
+
+        // Async monitoring fire-and-forget
+        let byteCount = payload.count
+        let abrMon = abrMonitor
+        Task { [weak self] in
+            guard let self else { return }
+            if let abrMon {
+                await abrMon.recordBytesSent(byteCount, pendingBytes: 0)
+            }
+            await self.recordBytesForQuality(byteCount)
+        }
     }
 
     /// Send a raw audio config payload (already formatted as FLV audio sequence header).
