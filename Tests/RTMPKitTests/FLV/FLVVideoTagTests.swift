@@ -123,14 +123,14 @@ struct FLVVideoTagTests {
     @Test("enhancedSequenceStart packetType is 0")
     func enhancedSequenceStartPacketType() {
         let body = FLVVideoTag.enhancedSequenceStart(fourCC: .hevc, config: [0x01])
-        let packetType = (body[0] >> 4) & 0x07
+        let packetType = body[0] & 0x0F
         #expect(packetType == 0)
     }
 
     @Test("enhancedSequenceStart frameType is keyFrame")
     func enhancedSequenceStartFrameType() {
         let body = FLVVideoTag.enhancedSequenceStart(fourCC: .hevc, config: [0x01])
-        let frameType = body[0] & 0x0F
+        let frameType = (body[0] >> 4) & 0x07
         #expect(frameType == VideoFrameType.keyFrame.rawValue)
     }
 
@@ -155,7 +155,7 @@ struct FLVVideoTagTests {
         let body = FLVVideoTag.enhancedCodedFrames(
             fourCC: .hevc, data: [0x01], isKeyframe: true
         )
-        let packetType = (body[0] >> 4) & 0x07
+        let packetType = body[0] & 0x0F
         #expect(packetType == 1)
     }
 
@@ -164,7 +164,7 @@ struct FLVVideoTagTests {
         let body = FLVVideoTag.enhancedCodedFrames(
             fourCC: .hevc, data: [0x01], isKeyframe: true
         )
-        let frameType = body[0] & 0x0F
+        let frameType = (body[0] >> 4) & 0x07
         #expect(frameType == 1)
     }
 
@@ -173,7 +173,7 @@ struct FLVVideoTagTests {
         let body = FLVVideoTag.enhancedCodedFrames(
             fourCC: .hevc, data: [0x01], isKeyframe: false
         )
-        let frameType = body[0] & 0x0F
+        let frameType = (body[0] >> 4) & 0x07
         #expect(frameType == 2)
     }
 
@@ -205,7 +205,7 @@ struct FLVVideoTagTests {
         let body = FLVVideoTag.enhancedCodedFramesX(
             fourCC: .av1, data: [0x01], isKeyframe: true
         )
-        let packetType = (body[0] >> 4) & 0x07
+        let packetType = body[0] & 0x0F
         #expect(packetType == 3)
     }
 
@@ -225,7 +225,7 @@ struct FLVVideoTagTests {
     @Test("enhancedSequenceEnd packetType is 2")
     func enhancedSequenceEndPacketType() {
         let body = FLVVideoTag.enhancedSequenceEnd(fourCC: .hevc)
-        let packetType = (body[0] >> 4) & 0x07
+        let packetType = body[0] & 0x0F
         #expect(packetType == 2)
     }
 

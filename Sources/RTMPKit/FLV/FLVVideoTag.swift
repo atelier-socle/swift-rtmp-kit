@@ -62,7 +62,7 @@ public enum FLVVideoTag: Sendable {
 
     /// Build Enhanced RTMP video sequence start.
     ///
-    /// Byte 0: `[isExHeader=1:1][PacketType=0:3][FrameType=1:4]`
+    /// Byte 0: `[isExHeader=1:1][FrameType=1:3][PacketType=0:4]`
     /// Bytes 1-4: FourCC
     /// Byte 5+: DecoderConfigurationRecord
     ///
@@ -80,7 +80,7 @@ public enum FLVVideoTag: Sendable {
 
     /// Build Enhanced RTMP video coded frames (WITH CTS — for HEVC).
     ///
-    /// Byte 0: `[isExHeader=1:1][PacketType=1:3][FrameType:4]`
+    /// Byte 0: `[isExHeader=1:1][FrameType:3][PacketType=1:4]`
     /// Bytes 1-4: FourCC
     /// Bytes 5-7: CTS (signed 24-bit, big-endian)
     /// Byte 8+: Coded data
@@ -110,7 +110,7 @@ public enum FLVVideoTag: Sendable {
 
     /// Build Enhanced RTMP video coded frames (NO CTS — for AV1).
     ///
-    /// Byte 0: `[isExHeader=1:1][PacketType=3:3][FrameType:4]`
+    /// Byte 0: `[isExHeader=1:1][FrameType:3][PacketType=3:4]`
     /// Bytes 1-4: FourCC
     /// Byte 5+: Coded data (no CTS field)
     ///
@@ -230,19 +230,20 @@ public enum FLVVideoTag: Sendable {
         // --- 23-byte fixed header ---
         // configurationVersion = 1
         record.append(0x01)
+        // HEVC SPS NALU has a 2-byte header; profile_tier_level starts at sps[2].
         // general_profile_space(2) | general_tier_flag(1) | general_profile_idc(5)
-        record.append(sps.count > 1 ? sps[1] : 0x00)
-        // general_profile_compatibility_flags (4 bytes)
         record.append(sps.count > 2 ? sps[2] : 0x00)
+        // general_profile_compatibility_flags (4 bytes)
         record.append(sps.count > 3 ? sps[3] : 0x00)
         record.append(sps.count > 4 ? sps[4] : 0x00)
         record.append(sps.count > 5 ? sps[5] : 0x00)
+        record.append(sps.count > 6 ? sps[6] : 0x00)
         // general_constraint_indicator_flags (6 bytes)
-        for i in 6...11 {
+        for i in 7...12 {
             record.append(sps.count > i ? sps[i] : 0x00)
         }
         // general_level_idc
-        record.append(sps.count > 12 ? sps[12] : 0x00)
+        record.append(sps.count > 13 ? sps[13] : 0x00)
         // min_spatial_segmentation_idc (12 bits) with 4 reserved bits = 0xF000
         record.append(0xF0)
         record.append(0x00)
@@ -283,9 +284,9 @@ public enum FLVVideoTag: Sendable {
 
     // MARK: - Private
 
-    /// Build enhanced video byte 0: `[1:1][packetType:3][frameType:4]`.
+    /// Build enhanced video byte 0: `[1:1][frameType:3][packetType:4]`.
     private static func buildEnhancedByte0(packetType: UInt8, frameType: UInt8) -> UInt8 {
-        0x80 | ((packetType & 0x07) << 4) | (frameType & 0x0F)
+        0x80 | ((frameType & 0x07) << 4) | (packetType & 0x0F)
     }
 
     /// Encode a signed 24-bit CTS value to 3 bytes (big-endian).

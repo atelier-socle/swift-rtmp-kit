@@ -81,6 +81,29 @@ struct RTMPCommandDecodeErrorCoverageTests {
             _ = try RTMPCommand.decode(from: bytes)
         }
     }
+
+    @Test(
+        "Bandwidth commands decode as ignored",
+        arguments: ["onBWDone", "onBWCheck", "_onbw", "_checkbw"]
+    )
+    func bandwidthCommandsIgnored(name: String) throws {
+        var encoder = AMF0Encoder()
+        let bytes = encoder.encode([
+            AMF0Value.string(name),
+            AMF0Value.number(0),
+            AMF0Value.null
+        ])
+        let cmd = try RTMPCommand.decode(from: bytes)
+        #expect(cmd == .ignored(name: name))
+    }
+
+    @Test("Ignored command roundtrips")
+    func ignoredCommandRoundtrip() throws {
+        let original = RTMPCommand.ignored(name: "onBWDone")
+        let bytes = original.encode()
+        let decoded = try RTMPCommand.decode(from: bytes)
+        #expect(decoded == .ignored(name: "onBWDone"))
+    }
 }
 
 @Suite("RTMPDataMessage — Decode Error Paths")

@@ -37,6 +37,15 @@ public enum RTMPCommand: Sendable, Equatable {
     /// Server status notification.
     case onStatus(information: AMF0Value)
 
+    /// Server-initiated command that should be silently ignored.
+    ///
+    /// Some RTMP servers (SRS, Wowza, nginx-rtmp) send informational
+    /// commands like `onBWDone`, `onBWCheck`, `_onbw`, or `_checkbw`
+    /// after connect. These are bandwidth-estimation callbacks defined
+    /// in the Adobe RTMP specification (Section 7.2.2) as optional.
+    /// The client MUST NOT treat them as errors.
+    case ignored(name: String)
+
     /// Message type ID (always 20 for AMF0 commands).
     public static let typeID: UInt8 = 20
 
@@ -75,15 +84,9 @@ extension RTMPCommand {
         case .connect(let txnID, let props):
             return [.string("connect"), .number(txnID), props.toAMF0()]
         case .result(let txnID, let props, let info):
-            return [
-                .string("_result"), .number(txnID),
-                props ?? .null, info ?? .null
-            ]
+            return [.string("_result"), .number(txnID), props ?? .null, info ?? .null]
         case .error(let txnID, let props, let info):
-            return [
-                .string("_error"), .number(txnID),
-                props ?? .null, info ?? .null
-            ]
+            return [.string("_error"), .number(txnID), props ?? .null, info ?? .null]
         case .createStream(let txnID):
             return [.string("createStream"), .number(txnID), .null]
         case .publish(let txnID, let name, let type):
@@ -94,10 +97,21 @@ extension RTMPCommand {
             return [.string("FCPublish"), .number(txnID), .null, .string(name)]
         case .fcUnpublish(let txnID, let name):
             return [.string("FCUnpublish"), .number(txnID), .null, .string(name)]
+        case .deleteStream, .onStatus, .ignored:
+            return encodeRemainingCommand()
+        }
+    }
+
+    private func encodeRemainingCommand() -> [AMF0Value] {
+        switch self {
         case .deleteStream(let txnID, let streamID):
             return [.string("deleteStream"), .number(txnID), .null, .number(streamID)]
         case .onStatus(let info):
             return [.string("onStatus"), .number(0), .null, info]
+        case .ignored(let name):
+            return [.string(name), .number(0), .null]
+        default:
+            return []
         }
     }
 }
@@ -128,6 +142,8 @@ extension RTMPCommand {
             return try decodeDeleteStream(txnID: txnID, values: values)
         case "onStatus":
             return decodeOnStatus(values: values)
+        case "onBWDone", "onBWCheck", "_onbw", "_checkbw":
+            return .ignored(name: name)
         default:
             throw MessageError.unknownCommand(name)
         }

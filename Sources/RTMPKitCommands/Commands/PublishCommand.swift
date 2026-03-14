@@ -566,11 +566,11 @@ extension PublishCommand {
     /// Detect if a video tag payload is a keyframe.
     ///
     /// Handles both legacy AVC (upper nibble = 1) and Enhanced RTMP
-    /// (lower nibble = keyFrame) formats.
+    /// (bits 4-6 = frameType) formats.
     static func isKeyframe(_ data: [UInt8]) -> Bool {
         guard let byte0 = data.first else { return false }
         if ExVideoHeader.isExHeader(byte0) {
-            return (byte0 & 0x0F) == VideoFrameType.keyFrame.rawValue
+            return ((byte0 >> 4) & 0x07) == VideoFrameType.keyFrame.rawValue
         }
         return (byte0 & 0xF0) == 0x10
     }
@@ -578,12 +578,12 @@ extension PublishCommand {
     /// Detect if a video tag payload is a config/sequence header.
     ///
     /// Legacy AVC: byte[1] == 0x00 (AVCPacketType == sequence header).
-    /// Enhanced RTMP: packetType == sequenceStart in byte 0.
+    /// Enhanced RTMP: packetType == sequenceStart in low nibble of byte 0.
     static func isVideoConfig(_ data: [UInt8]) -> Bool {
         guard !data.isEmpty else { return false }
         let byte0 = data[0]
         if ExVideoHeader.isExHeader(byte0) {
-            let packetType = (byte0 >> 4) & 0x07
+            let packetType = byte0 & 0x0F
             return packetType == ExVideoPacketType.sequenceStart.rawValue
         }
         return data.count >= 2 && data[1] == 0x00

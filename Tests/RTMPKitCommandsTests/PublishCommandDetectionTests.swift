@@ -25,11 +25,11 @@ struct PublishCommandKeyframeTests {
 
     @Test("enhanced HEVC keyframe detected")
     func enhancedKeyframe() {
-        // byte0 = 0x91: isExHeader=1, packetType=1, frameType=1 (keyframe)
+        // byte0 = 0x91: isExHeader=1, frameType=1 (keyframe), packetType=1
         let byte0: UInt8 =
             0x80
-            | (ExVideoPacketType.codedFrames.rawValue << 4)
-            | VideoFrameType.keyFrame.rawValue
+            | (VideoFrameType.keyFrame.rawValue << 4)
+            | ExVideoPacketType.codedFrames.rawValue
         let data: [UInt8] = [byte0] + FourCC.hevc.encode() + [0x00, 0x00, 0x00, 0xCC]
         #expect(PublishCommand.isKeyframe(data) == true)
     }
@@ -38,8 +38,8 @@ struct PublishCommandKeyframeTests {
     func enhancedInterFrame() {
         let byte0: UInt8 =
             0x80
-            | (ExVideoPacketType.codedFrames.rawValue << 4)
-            | VideoFrameType.interFrame.rawValue
+            | (VideoFrameType.interFrame.rawValue << 4)
+            | ExVideoPacketType.codedFrames.rawValue
         let data: [UInt8] = [byte0] + FourCC.hevc.encode() + [0x00, 0x00, 0x00, 0xDD]
         #expect(PublishCommand.isKeyframe(data) == false)
     }
@@ -71,8 +71,8 @@ struct PublishCommandVideoConfigTests {
     func enhancedSequenceStart() {
         let byte0: UInt8 =
             0x80
-            | (ExVideoPacketType.sequenceStart.rawValue << 4)
-            | VideoFrameType.keyFrame.rawValue
+            | (VideoFrameType.keyFrame.rawValue << 4)
+            | ExVideoPacketType.sequenceStart.rawValue
         let data: [UInt8] = [byte0] + FourCC.hevc.encode() + [0xDE, 0xAD]
         #expect(PublishCommand.isVideoConfig(data) == true)
     }
@@ -81,8 +81,8 @@ struct PublishCommandVideoConfigTests {
     func enhancedCodedFrames() {
         let byte0: UInt8 =
             0x80
-            | (ExVideoPacketType.codedFrames.rawValue << 4)
-            | VideoFrameType.keyFrame.rawValue
+            | (VideoFrameType.keyFrame.rawValue << 4)
+            | ExVideoPacketType.codedFrames.rawValue
         let data: [UInt8] = [byte0] + FourCC.hevc.encode() + [0x00, 0x00, 0x00, 0xCC]
         #expect(PublishCommand.isVideoConfig(data) == false)
     }

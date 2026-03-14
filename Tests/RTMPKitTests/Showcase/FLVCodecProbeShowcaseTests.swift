@@ -70,8 +70,8 @@ private func enhancedVideoPayload(fourCC: FourCC, isKeyframe: Bool) -> [UInt8] {
         : VideoFrameType.interFrame.rawValue
     let byte0: UInt8 =
         0x80
-        | ((ExVideoPacketType.codedFrames.rawValue & 0x07) << 4)
-        | (ft & 0x0F)
+        | ((ft & 0x07) << 4)
+        | (ExVideoPacketType.codedFrames.rawValue & 0x0F)
     return [byte0] + fourCC.encode() + [0x00, 0x00, 0x00, 0xAA]
 }
 

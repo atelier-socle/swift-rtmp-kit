@@ -34,7 +34,7 @@ public enum VideoFrameType: UInt8, Sendable {
 /// When the isExHeader bit is set, the video tag uses FourCC signaling
 /// instead of legacy codec IDs.
 ///
-/// Byte 0 layout: `[isExHeader=1:1][PacketType:3][FrameType:4]`
+/// Byte 0 layout: `[isExHeader=1:1][FrameType:3][PacketType:4]`
 public struct ExVideoHeader: Sendable, Equatable {
 
     /// Video packet type.
@@ -68,8 +68,8 @@ public struct ExVideoHeader: Sendable, Equatable {
     public func encode() -> [UInt8] {
         let byte0: UInt8 =
             0x80
-            | ((packetType.rawValue & 0x07) << 4)
-            | (frameType.rawValue & 0x0F)
+            | ((frameType.rawValue & 0x07) << 4)
+            | (packetType.rawValue & 0x0F)
         return [byte0] + fourCC.encode()
     }
 
@@ -83,8 +83,8 @@ public struct ExVideoHeader: Sendable, Equatable {
             throw FLVError.truncatedData(expected: 5, actual: bytes.count)
         }
         let byte0 = bytes[0]
-        let ptRaw = (byte0 >> 4) & 0x07
-        let ftRaw = byte0 & 0x0F
+        let ftRaw = (byte0 >> 4) & 0x07
+        let ptRaw = byte0 & 0x0F
         guard let pt = ExVideoPacketType(rawValue: ptRaw) else {
             throw FLVError.invalidFormat("Unknown video packet type: \(ptRaw)")
         }

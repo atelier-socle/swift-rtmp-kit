@@ -53,28 +53,28 @@ struct ExVideoHeaderTests {
         #expect((bytes[0] & 0x80) != 0)
     }
 
-    @Test("encode packs packetType and frameType correctly")
+    @Test("encode packs frameType and packetType correctly")
     func encodeBitLayout() {
-        // sequenceStart=0, keyFrame=1 → byte0 = 0x80 | (0 << 4) | 1 = 0x81
+        // keyFrame=1, sequenceStart=0 → byte0 = 0x80 | (1 << 4) | 0 = 0x90
         let header = ExVideoHeader(
             packetType: .sequenceStart,
             frameType: .keyFrame,
             fourCC: .hevc
         )
         let bytes = header.encode()
-        #expect(bytes[0] == 0x81)
+        #expect(bytes[0] == 0x90)
     }
 
     @Test("encode codedFrames interFrame bit layout")
     func encodeCodedFramesInterFrame() {
-        // codedFrames=1, interFrame=2 → byte0 = 0x80 | (1 << 4) | 2 = 0x92
+        // interFrame=2, codedFrames=1 → byte0 = 0x80 | (2 << 4) | 1 = 0xA1
         let header = ExVideoHeader(
             packetType: .codedFrames,
             frameType: .interFrame,
             fourCC: .av1
         )
         let bytes = header.encode()
-        #expect(bytes[0] == 0x92)
+        #expect(bytes[0] == 0xA1)
     }
 
     @Test("encode includes FourCC bytes")
@@ -112,8 +112,8 @@ struct ExVideoHeaderTests {
 
     @Test("decode invalid packet type throws")
     func decodeInvalidPacketType() {
-        // packetType=7 is invalid → byte0 = 0x80 | (7 << 4) | 1 = 0xF1
-        let bytes: [UInt8] = [0xF1, 0x68, 0x76, 0x63, 0x31]
+        // packetType=7 is invalid (low nibble) → byte0 = 0x80 | (1 << 4) | 7 = 0x97
+        let bytes: [UInt8] = [0x97, 0x68, 0x76, 0x63, 0x31]
         #expect(throws: FLVError.self) {
             try ExVideoHeader.decode(from: bytes)
         }
@@ -121,7 +121,7 @@ struct ExVideoHeaderTests {
 
     @Test("decode invalid frame type throws")
     func decodeInvalidFrameType() {
-        // frameType=0 is invalid → byte0 = 0x80 | (0 << 4) | 0 = 0x80
+        // frameType=0 is invalid (bits 4-6) → byte0 = 0x80 | (0 << 4) | 0 = 0x80
         let bytes: [UInt8] = [0x80, 0x68, 0x76, 0x63, 0x31]
         #expect(throws: FLVError.self) {
             try ExVideoHeader.decode(from: bytes)
