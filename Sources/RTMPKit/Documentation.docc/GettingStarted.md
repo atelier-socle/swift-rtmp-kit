@@ -12,7 +12,7 @@ Add RTMPKit to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/atelier-socle/swift-rtmp-kit.git", from: "0.2.0")
+    .package(url: "https://github.com/atelier-socle/swift-rtmp-kit.git", from: "0.3.0")
 ]
 ```
 
@@ -107,6 +107,19 @@ do {
     }
 }
 ```
+
+### What's New in 0.3.0
+
+RTMPKit 0.3.0 improves RTMP protocol compliance and streaming reliability:
+
+- **A/V timestamp interleaving** — Audio and video chunks are sent ordered by timestamp, matching the interleaving pattern of professional encoders like FFmpeg
+- **Chunk header compression** — ``ChunkDisassembler`` now uses fmt1/fmt2/fmt3 compressed headers per RTMP Section 5.3.1, reducing bandwidth overhead by up to 10 bytes per chunk
+- **Non-monotonic timestamp handling** — Automatic fallback to fmt0 full headers when B-frames cause out-of-order timestamps (H.264 High profile)
+- **TCP_NODELAY** — Low-latency socket option enabled by default via ``TransportConfiguration``, eliminating Nagle buffering delays
+- **Fire-and-forget monitoring** — Connection statistics collection moved off the critical send path for lower per-frame latency
+- **Bandwidth command compatibility** — ``RTMPCommand/ignored(name:)`` silently handles `onBWDone`, `onBWCheck`, `_onbw`, and `_checkbw` commands sent by SRS, Wowza, and nginx-rtmp
+- **Enhanced RTMP v2 spec compliance** — Fixed ``ExVideoHeader`` byte 0 layout to match the Veovera specification: `[isExHeader:1][FrameType:3][PacketType:4]`. Resolves HEVC interop with SRS v6 and OBS
+- **HEVC config record fix** — ``FLVVideoTag/buildHEVCDecoderConfigurationRecord(vps:sps:pps:)`` now correctly skips the 2-byte NALU header when extracting profile/tier/level fields from the SPS
 
 ### What's New in 0.2.0
 

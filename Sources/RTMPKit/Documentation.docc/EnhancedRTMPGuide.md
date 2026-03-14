@@ -138,7 +138,7 @@ let endSeq = FLVAudioTag.enhancedSequenceEnd(fourCC: .opus)
 
 ### Auto-Detection from FLV Files
 
-RTMPKit 0.2.0 can auto-detect the video codec from FLV files and enable Enhanced RTMP v2 transparently. When an FLV file contains HEVC, AV1, or VP9 video tags, the CLI automatically enables Enhanced RTMP and sends the `fourCcList` in the connect command.
+RTMPKit can auto-detect the video codec from FLV files and enable Enhanced RTMP v2 transparently. When an FLV file contains HEVC, AV1, or VP9 video tags, the CLI automatically enables Enhanced RTMP and sends the `fourCcList` in the connect command.
 
 ```swift
 // Probe codecs from FLV file bytes
@@ -193,6 +193,35 @@ enhanced.supports(.hevc)  // false — use legacy tags instead
 // Legacy video tags still work
 let legacyVideo = FLVVideoTag.avcNALU(naluData, isKeyframe: true)
 ```
+
+### Video Tag Byte Layout
+
+Enhanced RTMP video tags use a specific byte 0 layout defined by the Veovera specification:
+
+```
+Byte 0: [isExHeader:1][FrameType:3][PacketType:4]
+```
+
+| Bits | Field | Values |
+|------|-------|--------|
+| 7 | `isExHeader` | `1` (always set for enhanced tags) |
+| 6-4 | `FrameType` | `1`=keyframe, `2`=inter, `3`=disposable inter, `5`=command |
+| 3-0 | `PacketType` | `0`=sequenceStart, `1`=codedFrames, `2`=sequenceEnd, `3`=codedFramesX |
+
+For example, an HEVC keyframe sequence header has byte 0 = `0x90` (`0x80 | (1 << 4) | 0`), and an HEVC inter coded frame has byte 0 = `0xA1` (`0x80 | (2 << 4) | 1`).
+
+The ``ExVideoHeader`` type handles encoding and decoding of this header format. Use ``ExVideoHeader/isExHeader(_:)`` to detect enhanced tags in incoming data.
+
+### Server Compatibility
+
+RTMPKit 0.3.0 has been validated against:
+
+| Server | HEVC | AV1 | Notes |
+|--------|------|-----|-------|
+| SRS v6 | Yes | Yes | Requires Enhanced RTMP v2 byte 0 format |
+| MediaMTX | Yes | Yes | Auto-detects enhanced tags |
+| nginx-rtmp | No | No | Legacy H.264/AAC only |
+| Wowza | Yes | Partial | Requires HEVC license |
 
 ### Multitrack Support
 

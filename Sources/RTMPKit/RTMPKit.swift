@@ -11,5 +11,5 @@ import NIOCore
 /// Enhanced RTMP v2 (HEVC, AV1, Opus).
 public enum RTMPKitVersion {
     /// The current version of the library.
-    public static let version = "0.2.0"
+    public static let version = "0.3.0"
 }

@@ -3,7 +3,7 @@
 # Copyright 2026 Atelier Socle SAS
 #
 # Mock RTMP Server for swift-rtmp-kit manual testing.
-# Supports all 0.1.0 scenarios (zero regressions) + all 0.2.0 features.
+# Supports all 0.1.0 scenarios (zero regressions) + all 0.2.0 + 0.3.0 features.
 #
 # ─── 0.1.0 usage (unchanged) ──────────────────────────────────────────
 #   python3 mock-rtmp-server.py                          # Normal mode (port 1935)
@@ -443,7 +443,7 @@ class MockRTMPServer:
 
         print(f"""
 {Color.BOLD}╔══════════════════════════════════════════════════════╗
-║      Mock RTMP Server — swift-rtmp-kit 0.2.0         ║
+║      Mock RTMP Server — swift-rtmp-kit 0.3.0         ║
 ╠══════════════════════════════════════════════════════╣
 ║  Port:             {self.port:<34} ║
 ║  Fail mode:        {mode_str:<34} ║
@@ -1049,7 +1049,7 @@ class MockRTMPServer:
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Mock RTMP Server for swift-rtmp-kit testing (0.1.0 + 0.2.0)',
+        description='Mock RTMP Server for swift-rtmp-kit testing (0.1.0 + 0.2.0 + 0.3.0)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 ─── 0.1.0 scenarios (unchanged) ──────────────────────────────────────

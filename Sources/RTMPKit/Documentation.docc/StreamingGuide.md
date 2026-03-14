@@ -122,7 +122,7 @@ metadata.audioSampleRate = 44100
 metadata.audioSampleSize = 16
 metadata.isStereo = true
 metadata.audioCodecID = 10  // AAC
-metadata.encoder = "RTMPKit/0.2.0"
+metadata.encoder = "RTMPKit/0.3.0"
 
 try await publisher.updateMetadata(metadata)
 ```

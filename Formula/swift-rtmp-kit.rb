@@ -22,7 +22,7 @@
 class SwiftRtmpKit < Formula
   desc "CLI tool for publishing live streams to RTMP/RTMPS servers"
   homepage "https://github.com/atelier-socle/swift-rtmp-kit"
-  url "https://github.com/atelier-socle/swift-rtmp-kit/archive/refs/tags/0.2.0.tar.gz"
+  url "https://github.com/atelier-socle/swift-rtmp-kit/archive/refs/tags/0.3.0.tar.gz"
   sha256 "UPDATE_SHA256_AFTER_RELEASE"
   license "Apache-2.0"
 

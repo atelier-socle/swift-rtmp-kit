@@ -15,8 +15,9 @@ Pure Swift RTMP publish client for live streaming to Twitch, YouTube, Facebook, 
 
 ## Features
 
-- **Full RTMP 1.0 protocol** — Handshake (C0/C1/C2), chunk stream multiplexing, AMF0 commands, FLV packaging
-- **Enhanced RTMP v2** — FourCC codec negotiation for HEVC, AV1, VP9, Opus, FLAC, AC-3, and E-AC-3 with auto-detection from FLV files
+- **Full RTMP 1.0 protocol** — Handshake (C0/C1/C2), chunk stream multiplexing with fmt1/fmt2/fmt3 header compression, AMF0 commands, FLV packaging
+- **Enhanced RTMP v2** — FourCC codec negotiation for HEVC, AV1, VP9, Opus, FLAC, AC-3, and E-AC-3 with auto-detection from FLV files. Validated E2E with SRS v6 and MediaMTX
+- **A/V timestamp interleaving** — Audio and video chunks sent in timestamp order, matching FFmpeg's interleaving pattern
 - **FLV packaging** — Audio tags (AAC sequence headers, raw frames), video tags (AVC NALUs, keyframes), script data
 - **10 platform presets** — One-line configuration for Twitch, YouTube, Facebook, Kick, Instagram, TikTok, Rumble, LinkedIn, Trovo, and Twitter/Periscope
 - **Streaming platform registry** — Programmatic discovery with case-insensitive lookup, TLS-required filtering, and dynamic configuration
@@ -38,6 +39,8 @@ Pure Swift RTMP publish client for live streaming to Twitch, YouTube, Facebook, 
 - **Cross-platform** — macOS 14+, iOS 17+, tvOS 17+, watchOS 10+, visionOS 1+, and Linux (Swift 6.2+)
 - **CLI tool** — `rtmp-cli` for streaming, recording, probing, server management, and diagnostics
 - **Swift 6.2 strict concurrency** — Actors for stateful types, `Sendable` everywhere, `async`/`await` throughout, zero `@unchecked Sendable` or `nonisolated(unsafe)`
+- **Server compatibility** — Tested with MediaMTX, SRS v6, nginx-rtmp, and Wowza. Handles bandwidth commands (`onBWDone`, `onBWCheck`) sent by SRS and Wowza
+- **Low-latency transport** — TCP_NODELAY enabled by default, fire-and-forget monitoring off the critical send path
 - **Zero core dependencies** — The `RTMPKit` target depends only on SwiftNIO for the transport layer. No other third-party dependencies
 
 ---
@@ -92,7 +95,7 @@ Add the dependency to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/atelier-socle/swift-rtmp-kit.git", from: "0.2.0")
+    .package(url: "https://github.com/atelier-socle/swift-rtmp-kit.git", from: "0.3.0")
 ]
 ```
 
