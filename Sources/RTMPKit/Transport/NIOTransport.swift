@@ -244,9 +244,15 @@ public actor NIOTransport: RTMPTransportProtocol {
 
         let noDelay = configuration.tcpNoDelay
         let rcvBuf = ChannelOptions.Types
-            .SocketOption(level: SOL_SOCKET, name: SO_RCVBUF)
+            .SocketOption(
+                level: SocketOptionLevel(SOL_SOCKET),
+                name: SocketOptionName(SO_RCVBUF)
+            )
         let sndBuf = ChannelOptions.Types
-            .SocketOption(level: SOL_SOCKET, name: SO_SNDBUF)
+            .SocketOption(
+                level: SocketOptionLevel(SOL_SOCKET),
+                name: SocketOptionName(SO_SNDBUF)
+            )
 
         let bootstrap = ClientBootstrap(group: eventLoopGroup)
             .connectTimeout(.seconds(connectTimeoutSecs))
